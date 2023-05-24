@@ -139,7 +139,7 @@ if use_libjpeg_turbo:
     def imread_jpeg(path, dst=None):
         if isinstance(path, bytes):
             path = path.decode('utf8')
-        elif isinstance(path, np.str):
+        elif isinstance(path, str):
             path = str(path)
         path = util.ensure_absolute_path(path)
         try:
@@ -152,7 +152,7 @@ else:
         assert dst is None
         if isinstance(path, bytes):
             path = path.decode('utf8')
-        elif isinstance(path, np.str):
+        elif isinstance(path, str):
             path = str(path)
         path = util.ensure_absolute_path(path)
         return imageio.imread(path)

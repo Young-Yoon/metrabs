@@ -26,7 +26,7 @@ rm -rf cocoapi
 
 # We need to install the [CDF library](https://cdf.gsfc.nasa.gov/) because Human3.6M supplies the annotations as cdf files.
 # We read them using the [SpacePy](https://spacepy.github.io/) Python library, which in turn depends on the CDF library.
-wget https://spdf.sci.gsfc.nasa.gov/pub/software/cdf/dist/cdf37_1/linux/cdf37_1-dist-cdf.tar.gz
+wget https://spdf.gsfc.nasa.gov/pub/software/cdf/dist/cdf37_1/linux/cdf37_1-dist-cdf.tar.gz
 tar xf cdf37_1-dist-cdf.tar.gz
 rm cdf37_1-dist-cdf.tar.gz
 cd cdf37_1-dist

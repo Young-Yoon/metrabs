@@ -35,8 +35,8 @@ def main():
     initialize()
     model = tf.saved_model.load(FLAGS.model_path)
     skeleton = 'h36m_17'
-    joint_names = model.per_skeleton_joint_names[skeleton].numpy().astype(str)
-    joint_edges = model.per_skeleton_joint_edges[skeleton].numpy()
+    joint_names = model.joint_names.numpy().astype(str)
+    joint_edges = model.joint_edges.numpy()
     predict_fn = functools.partial(
         model.estimate_poses_batched, internal_batch_size=0, num_aug=FLAGS.num_aug,
         antialias_factor=2, skeleton=skeleton)
