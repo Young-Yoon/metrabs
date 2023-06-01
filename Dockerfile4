@@ -30,16 +30,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip \
     wget \
     vim \
-    libncurses5-dev libncursesw5-dev
+    libncurses5-dev libncursesw5-dev openexr libopenexr-dev libturbojpeg
+
 RUN rm -rf /var/lib/apt/lists/*
 
 ARG PYTHON_VERSION=3.8
-RUN apt update && apt install -y --no-install-recommends \
-    python${PYTHON_VERSION} python${PYTHON_VERSION}-dev python${PYTHON_VERSION}-venv python3-pip 
+#RUN apt update && apt install -y --no-install-recommends \
+#    python${PYTHON_VERSION} python${PYTHON_VERSION}-dev python${PYTHON_VERSION}-venv python3-pip 
 #    cuda-10-1 # nvidia-smi conflicts
 
 #metrabs
-RUN apt install build-essential --yes gfortran tar
+RUN apt update && apt install -y --no-install-recommends build-essential --yes gfortran tar
 
 # tensorflow profiling
 ENV PATH /usr/local/cuda/bin:$PATH
@@ -78,9 +79,12 @@ RUN conda create -n ${ENV_NAME} python=${PYTHON_VERSION}
 ENV PATH /usr/local/envs/$CONDA_ENV_NAME/bin:$PATH
 RUN echo "source activate ${ENV_NAME}" >> ~/.bashrc
 RUN source activate ${ENV_NAME} && \
-    conda install -c defaults -c conda-forge \
-    matplotlib imageio ffmpeg scikit-image scikit-learn tqdm numba cachetools Cython Pillow mayavi &&\ 
-    pip install tensorflow==2.10.0 tensorflow-addons attrdict importlib_resources jpeg4py imageio-ffmpeg transforms3d more_itertools spacepy einops yacs opencv-python
+    conda install -y -c defaults -c conda-forge \
+        matplotlib imageio ffmpeg scikit-image scikit-learn tqdm numba cachetools Cython Pillow mayavi &&\ 
+#    sudo apt-get install -y -no-install-recommends openexr libopenexr-dev &&\ 
+    pip install tensorflow==2.10.0 tensorflow-addons==0.18.0 attrdict importlib_resources jpeg4py imageio-ffmpeg transforms3d more_itertools spacepy einops yacs opencv-python \
+        OpenEXR wandb tensorflow-graphics
+
 
 #USER root 
 #RUN wget http://archive.ubuntu.com/ubuntu/pool/main/libf/libffi/libffi7_3.3-4_amd64.deb && dpkg -i libffi7_3.3-4_amd64.deb
@@ -131,11 +135,25 @@ RUN source activate ${ENV_NAME} && \
 # If you have sudo rights, simply run `sudo make install`. If you have no `sudo` rights, make sure to add the
 # `cdf37_1-dist/src/lib` to the `LD_LIBRARY_PATH` environment variable (add to ~/.bashrc for permanent effect), or use GNU Stow.
 # The following will work temporarily:
-RUN export LD_LIBRARY_PATH=/home/$USER_NAME/cdf37_1-dist/src/lib:/home/$USER_NAME/.conda/envs/${ENV_NAME}/lib/python${PYTHON_VERSION}/site-packages/tensorrt_libs${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}} && \
-    export DATA_ROOT=/home/$USER_NAME 
+ENV LD_LIBRARY_PATH=/home/$USER_NAME/cdf37_1-dist/src/lib:/home/$USER_NAME/.conda/envs/${ENV_NAME}/lib/python${PYTHON_VERSION}/site-packages/tensorrt_libs${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+ENV DATA_ROOT=/home/$USER_NAME
    
+WORKDIR /home/$USER_NAME/
+COPY --chown=$USER_NAME cocoapi/PythonAPI/Makefile cocoapi/PythonAPI/
+COPY --chown=$USER_NAME cocoapi/PythonAPI/setup.py cocoapi/PythonAPI/
+COPY --chown=$USER_NAME cocoapi/common/maskApi.* cocoapi/common/
+COPY --chown=$USER_NAME cocoapi/PythonAPI/pycocotools/* cocoapi/PythonAPI/pycocotools/
+WORKDIR /home/$USER_NAME/cocoapi/PythonAPI/
+RUN source activate ${ENV_NAME} && make && python setup.py install
+
+#USER root
+#RUN apt-get install openexr libopenexr-dev
+#USER $USER_NAME
+#RUN source activate ${ENV_NAME} &&\
+#    pip install OpenEXR wandb tensorflow-graphics
 
 WORKDIR /home/$USER_NAME
+
 
 # jupyter
 #ENV PATH /usr/local/envs/$CONDA_ENV_NAME/bin:$PATH
