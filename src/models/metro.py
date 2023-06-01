@@ -68,7 +68,7 @@ class MetroTrainer(models.model_trainer.ModelTrainer):
         self.joint_info_2d = joint_info2d
         self.model = metro_model
         inp = keras.Input(shape=(None, None, 3), dtype=tfu.get_dtype())
-        self(inp, training=False)
+        self.model(inp, training=False)
 
     def forward_test(self, inps):
         return dict(coords3d_rel_pred=self.model(inps['image'], training=False))
