@@ -27,7 +27,7 @@ def main():
     # The root joint is the last if this is set, else the first
     parser.add_argument('--root-last', action=options.BoolAction)
     options.initialize(parser)
-    FLAGS.pred_path = util.ensure_absolute_path(FLAGS.pred_path, f'{paths.DATA_ROOT}/metrabs/src')
+    FLAGS.pred_path = util.ensure_absolute_path(FLAGS.pred_path, f'{paths.DATA_ROOT}/experiments')
 
     all_image_relpaths, all_true3d = get_all_gt_poses()
     activities = np.array([re.search(f'Images/(.+?)\.', path)[1].split(' ')[0]
@@ -91,7 +91,7 @@ def get_all_gt_poses():
     frame_step = 64
     all_world_coords = []
     all_image_relpaths = []
-    for i_subj in [9]:
+    for i_subj in [9, 11]:
         for activity, cam_id in itertools.product(data.h36m.get_activity_names(i_subj), range(4)):
             # Corrupt data in original release:
             # if i_subj == 11 and activity == 'Directions' and cam_id == 0:
@@ -111,8 +111,8 @@ def get_all_gt_poses():
     order = np.argsort(all_image_relpaths)
     all_world_coords = np.concatenate(all_world_coords, axis=0)[order]
     all_image_relpaths = np.array(all_image_relpaths)[order]
-    if True: #FLAGS.only_S11:
-        needed = ['S9' in p for p in all_image_relpaths]
+    if FLAGS.only_S11:
+        needed = ['S11' in p for p in all_image_relpaths]
         return all_image_relpaths[needed], all_world_coords[needed]
     return all_image_relpaths, all_world_coords
 

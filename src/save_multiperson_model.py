@@ -50,8 +50,8 @@ class Pose3dEstimator(tf.Module):
         self.joint_info = data.datasets3d.JointInfo(joint_names, self.joint_edges.numpy())
         self.detector = tf.saved_model.load(FLAGS.detector_path) if FLAGS.detector_path else None
 
-        if len(joint_names) == 122:
-            skeleton_infos = util.load_pickle('./saved_model_export/skeleton_types.pkl')
+        if True: #len(joint_names) == 122:
+            skeleton_infos = util.load_pickle('./skeleton_types.pkl')
             self.per_skeleton_indices = {
                 k: tf.Variable(v['indices'], dtype=tf.int32, trainable=False)
                 for k, v in skeleton_infos.items()}

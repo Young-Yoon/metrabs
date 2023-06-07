@@ -3,7 +3,7 @@
 model_dir=$1
 shift
 
-model_path=$model_dir
+model_path=$model_dir/model_multi
 
 for dataset in $@; do
   echo $dataset
