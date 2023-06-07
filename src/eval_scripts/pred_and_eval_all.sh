@@ -7,7 +7,7 @@ model_path=$model_dir/model_multi
 
 for dataset in $@; do
   echo $dataset
-  for num_aug in 1; do
+  for num_aug in 1 2 5; do
     pred_path=$model_dir/${dataset}_pred_aug${num_aug}.npz
     if [[ true || ! -f $pred_path ]]; then
       python -m inference_scripts.predict_$dataset --model-path="$model_path" --output-path="$pred_path" --num-aug=$num_aug
