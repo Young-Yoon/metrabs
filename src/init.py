@@ -174,6 +174,7 @@ def get_parser():
                         action=options.HyphenToUnderscoreAction)
     parser.add_argument('--backbone', type=str, default='resnet50V2',
                         help='Backbone of the predictor network.')
+    parser.add_argument('--mobilenet-alpha', type=float, default=1.0, help='alpha of the MobileNetV3')
     parser.add_argument('--pred-path', type=str, default=None)
     parser.add_argument('--depth', type=int, default=8,
                         help='Number of voxels along the z axis for volumetric prediction')
