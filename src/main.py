@@ -225,7 +225,12 @@ def export():
     ji = dataset3d.joint_info
     del dataset3d
     backbone = backbones.builder.build_backbone()
-    model = models.metrabs.Metrabs(backbone, ji)
+    if FLAGS.model_class == 'Metrabs':
+        model = models.metrabs.Metrabs(backbone, ji)
+        input_shape = [(None, None, None, 3), (None, 3, 3)]
+    else:
+        model = models.metro.Metro(backbone, ji)
+        input_shape = (None, None, None, 3)
 
     ckpt = tf.train.Checkpoint(model=model)
     ckpt_manager = tf.train.CheckpointManager(ckpt, FLAGS.checkpoint_dir, None)
@@ -239,6 +244,7 @@ def export():
 
     checkpoint_dir = os.path.dirname(load_path)
     out_path = util.ensure_absolute_path(FLAGS.export_file, checkpoint_dir)
+    model.compute_output_shape(input_shape=input_shape)
     model.save(
         out_path, include_optimizer=False, overwrite=True,
         options=tf.saved_model.SaveOptions(experimental_custom_gradients=True))
