@@ -75,6 +75,10 @@ def initialize(args=None):
 
     FLAGS.backbone = FLAGS.backbone.replace('_', '-')
 
+    if FLAGS.set_gpu > 0:
+        gpus = tf.config.list_physical_devices('GPU')
+        tf.config.set_visible_devices(gpus[FLAGS.set_gpu], 'GPU')
+
     for gpu in tf.config.experimental.list_physical_devices('GPU'):
         tf.config.experimental.set_memory_growth(gpu, True)
 
@@ -215,6 +219,7 @@ def get_parser():
     parser.add_argument('--scale-agnostic-loss', action=options.BoolAction)
     parser.add_argument('--training-steps', type=int)
     parser.add_argument('--multi-gpu', action=options.BoolAction)
+    parser.add_argument('--set-gpu', type=int, default=0)
     parser.add_argument('--checkpoint-period', type=int, default=2000)
     parser.add_argument('--model-class', type=str, default='Metrabs')
     parser.add_argument('--final-transposed-conv', type=int, default=8)
