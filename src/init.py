@@ -222,5 +222,6 @@ def get_parser():
     parser.add_argument('--set-gpu', type=int, default=0)
     parser.add_argument('--checkpoint-period', type=int, default=2000)
     parser.add_argument('--model-class', type=str, default='Metrabs')
+    parser.add_argument('--input-float32', action=options.BoolAction)
     parser.add_argument('--final-transposed-conv', type=int, default=8)
     return parser
