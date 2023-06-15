@@ -30,19 +30,20 @@ data_root = '/home/jovyan/data/metrabs-processed/h36m/'
 exp_root = '/home/jovyan/runs/metrabs-exp/'
 
 #model_folder = exp_root + 'tconv1_in112/h36m_METRO_m3s03_rand1_1500/model/'
-model_folder = exp_root + sys.argv[1] + '/model/'
-if not os.path.isdir(model_folder):
-    raise OSError("model_folder not exist" + model_folder)
+model_folder = [exp_root + p + '/model/' for p in sys.argv[1:-1]]
+for p in model_folder:
+    if not os.path.isdir(p):
+        raise OSError("model_folder not exist" + p)
 
-model_name = model_folder.split("/")
-input_size = 112 if "112" in model_name[-4] else 160 if "160" in model_name[-4] else 256
-print(model_name[-4:-2], input_size)
+model_name = [p.split("/") for p in model_folder]
+input_size = [112 if "112" in p[-4] else 160 if "160" in p[-4] else 256 for p in model_name]
+print(model_name[:][-4:-2], input_size)
 
 model_detector_folder = exp_root + "models/eff2s_y4/model_multi"
 model_d = tf.saved_model.load(model_detector_folder)
 det = model_d.detector
 
-model = tf.saved_model.load(model_folder)
+model = [tf.saved_model.load(p) for p in model_folder]
 print("Loading model is done")
 
 #for filename in glob.glob('Directions/*.jpg'): #assuming gif
@@ -67,7 +68,7 @@ for i_subj in [11]: # [9, 11]:
             n_frames_total = 250 # len(world_coords)       
             image_relfolder = data_root + f'S{i_subj}/Images/{activity}.{camera_name}'
 
-            MYDIR = (exp_root + "visualize/" + "_".join(model_name[-4:-2]) + f'/S{i_subj}_{activity}.{camera_name}/' )
+            MYDIR = (exp_root + "visualize/" + sys.argv[-1] + f'/S{i_subj}_{activity}.{camera_name}/' )
 
             CHECK_FOLDER = os.path.isdir(MYDIR)
             if not CHECK_FOLDER:
@@ -96,47 +97,56 @@ for i_subj in [11]: # [9, 11]:
 
                 x, y, wd, ht, conf = bbox[0]
                 crop = np.array(img)[int(y):int(y+ht), int(x):int(x+wd)]
-                res = cv2.resize(crop, dsize=(input_size, input_size), interpolation=cv2.INTER_CUBIC)    
+                pred = []
+                for i_m, mod in enumerate(model):
+                    res = cv2.resize(crop, dsize=(input_size[i_m], input_size[i_m]), interpolation=cv2.INTER_CUBIC)    
 
-                inp = res.astype(np.float16)
-                inp /= 256.
-                test = model(inp[np.newaxis,...], False)
+                    inp = res.astype(np.float16)
+                    inp /= 256.
+                    test = mod(inp[np.newaxis,...], False)
 
-                xs = test.numpy()[0, :, 0]
-                ys = test.numpy()[0, :, 1]
+                    xs = test.numpy()[0, :, 0]
+                    ys = test.numpy()[0, :, 1]
                 
-                raw_output = test[0,:,:]
-                i_root = -1                
-                test -= test[:, i_root, np.newaxis]
+                    raw_output = test[0,:,:]
+                    i_root = -1                
+                    test -= test[:, i_root, np.newaxis]
 
-                tt = test[0,:,:]
+                    tt = test[0,:,:]
+                    pred.append(tt)
+
                 fig = plt.figure()
                 # Add a 3D subplot
 
     #            np.save("test", tt)
+                
+                for i_m in range(min(len(model), 5)):
+                    ax = fig.add_subplot(2,3,i_m+2, projection='3d')
+                    tt = pred[i_m]
+                    tt = tt.numpy()
+                    #    tt = tt[[3, 4, 5, 0, 1, 2, 6, 7, 8, 9, 13, 14, 15, 10, 11, 12, 16], :]
+                    ax.scatter(tt[:, 0], -tt[:, 2], -tt[:, 1], s=1, c='r')
 
-                ax = fig.add_subplot(122, projection='3d')
-                tt = tt.numpy()
-                #    tt = tt[[3, 4, 5, 0, 1, 2, 6, 7, 8, 9, 13, 14, 15, 10, 11, 12, 16], :]
-                ax.scatter(tt[:, 0], -tt[:, 2], -tt[:, 1], s=1, c='r')
-
-                for i, j in skeleton:
-                    plt.plot([tt[i, 0], tt[j, 0]], [-tt[i, 2], -tt[j, 2]], [-tt[i, 1], -tt[j, 1]], 'r')
+                    for i, j in skeleton:
+                        plt.plot([tt[i, 0], tt[j, 0]], [-tt[i, 2], -tt[j, 2]], [-tt[i, 1], -tt[j, 1]], 'r')
 
 
-                ax.set_xlabel('X Label')
-                ax.set_ylabel('Y Label')
-                ax.set_zlabel('Z Label')
+                    #ax.set_xlabel('X Label')
+                    #ax.set_ylabel('Y Label')
+                    #ax.set_zlabel('Z Label')
 
-                ax.set_xlim3d(-700, 700)
-                ax.set_zlim3d(-700, 700)
-                ax.set_ylim3d(-700, 700)
+                    ax.set_xlim3d(-700, 700)
+                    ax.set_zlim3d(-700, 700)
+                    ax.set_ylim3d(-700, 700)
+                    ax.set_title(f"{model_name[i_m][-3].split('_')[2]}_in{input_size[i_m]}")
 
-                ax2 = fig.add_subplot(121)
+                ax2 = fig.add_subplot(231)
                 ax2.imshow(img)
                 rect = patches.Rectangle((x, y), wd, ht, linewidth=1, edgecolor='r', facecolor='none')
                 ax2.add_patch(rect)
+                ax2.set_title(f'S{i_subj}_{activity}_{cam_id}')
 
+                plt.axis('off')
                 plt.savefig(save_path)
 
                 plt.close()
@@ -146,4 +156,3 @@ for i_subj in [11]: # [9, 11]:
 
             #np.save(save_path)                
             number_activity =  number_activity+1
-
