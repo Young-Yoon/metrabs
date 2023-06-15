@@ -28,7 +28,7 @@ class Metro(keras.Model):
                     '/globalwork/sarandi/data/skeleton_conversion/'
                     'latent_to_all_32_singlestage.npy'))
         self.predict_multi.get_concrete_function(
-            tf.TensorSpec(shape=(None, None, None, 3), dtype=tf.float16))
+            tf.TensorSpec(shape=(None, None, None, 3), dtype=tf.float32 if FLAGS.input_float32 else tf.float16))
 
 
     def call(self, image, training=None):
