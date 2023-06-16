@@ -49,7 +49,7 @@ print("Loading model is done")
 #for filename in glob.glob('Directions/*.jpg'): #assuming gif
 
 
-camera_names = ['54138969', '55011271', '58860488', '60457274']
+camera_names = ['55011271', '54138969', '58860488', '60457274']
 frame_step = 5
 all_world_coords = []
 all_image_relpaths = []
@@ -59,13 +59,13 @@ for i_subj in [11]: # [9, 11]:
     for activity, cam_id in itertools.product(data.h36m.get_activity_names(i_subj), range(4)):    
         # print(activity, cam_id, number_activity)
                
-            if not 'Walking' in activity: # number_activity==30:
+            if not 'Directions' in activity: # number_activity==30:
                 continue
             camera_name = camera_names[cam_id]
             pose_folder = data_root + f'S{i_subj}/MyPoseFeatures'
             coord_path = f'{pose_folder}/D3_Positions/{activity}.cdf'
             world_coords = load_coords(coord_path)
-            n_frames_total = 250 # len(world_coords)       
+            n_frames_total = len(world_coords)       
             image_relfolder = data_root + f'S{i_subj}/Images/{activity}.{camera_name}'
 
             MYDIR = (exp_root + "visualize/" + sys.argv[-1] + f'/S{i_subj}_{activity}.{camera_name}/' )
@@ -115,32 +115,36 @@ for i_subj in [11]: # [9, 11]:
                     tt = test[0,:,:]
                     pred.append(tt)
 
-                fig = plt.figure()
+    #            np.save("test", tt)
+                deg = 5
+                views = [(deg, deg-90), (deg, deg), (90-deg, deg-90)]
+                fsz = 2
+                fig = plt.figure(figsize=(fsz*len(model)+fsz, fsz*len(views)))
                 # Add a 3D subplot
 
-    #            np.save("test", tt)
-                
-                for i_m in range(min(len(model), 5)):
-                    ax = fig.add_subplot(2,3,i_m+2, projection='3d')
+                for i_m in range(len(model)):
                     tt = pred[i_m]
                     tt = tt.numpy()
                     #    tt = tt[[3, 4, 5, 0, 1, 2, 6, 7, 8, 9, 13, 14, 15, 10, 11, 12, 16], :]
-                    ax.scatter(tt[:, 0], -tt[:, 2], -tt[:, 1], s=1, c='r')
 
-                    for i, j in skeleton:
-                        plt.plot([tt[i, 0], tt[j, 0]], [-tt[i, 2], -tt[j, 2]], [-tt[i, 1], -tt[j, 1]], 'r')
+                    for i_v in range(len(views)):
+                        ax = fig.add_subplot(len(views),len(model)+1,(len(model)+1)*i_v + i_m+2, projection='3d')
+                        ax.view_init(*views[i_v])
+                        ax.scatter(tt[:, 0], -tt[:, 2], -tt[:, 1], s=1, c='r')
 
+                        for i, j in skeleton:
+                            plt.plot([tt[i, 0], tt[j, 0]], [-tt[i, 2], -tt[j, 2]], [-tt[i, 1], -tt[j, 1]], 'r')
 
-                    #ax.set_xlabel('X Label')
-                    #ax.set_ylabel('Y Label')
-                    #ax.set_zlabel('Z Label')
+                        #ax.set_xlabel('x')
+                        #ax.set_ylabel('y')
+                        #ax.set_zlabel('z')
 
-                    ax.set_xlim3d(-700, 700)
-                    ax.set_zlim3d(-700, 700)
-                    ax.set_ylim3d(-700, 700)
-                    ax.set_title(f"{model_name[i_m][-3].split('_')[2]}_in{input_size[i_m]}")
+                        ax.set_xlim3d(-700, 700)
+                        ax.set_zlim3d(-700, 700)
+                        ax.set_ylim3d(-700, 700)
+                        ax.set_title(f"{model_name[i_m][-3].split('_')[2]}_in{input_size[i_m]}")
 
-                ax2 = fig.add_subplot(231)
+                ax2 = fig.add_subplot(len(views),len(model)+1,1)
                 ax2.imshow(img)
                 rect = patches.Rectangle((x, y), wd, ht, linewidth=1, edgecolor='r', facecolor='none')
                 ax2.add_patch(rect)
@@ -154,5 +158,6 @@ for i_subj in [11]: # [9, 11]:
                 #out_test[k,:,:] = raw_output[:,:]
                 #k=k+1
 
+            break
             #np.save(save_path)                
             number_activity =  number_activity+1
