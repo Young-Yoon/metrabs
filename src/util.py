@@ -454,3 +454,43 @@ def timed(name):
     yield
     end = time.time()
     print(f'{name}: {(end - start) * 1000:.1f} ms')
+
+
+def compute_mac(model_dir):
+    import tensorflow as tf
+    from tensorflow.python.framework.convert_to_constants import convert_variables_to_constants_v2_as_graph
+    model = tf.saved_model.load(model_dir)
+    inp = 112 if "in112" in model_dir else 160 if "in160" in model_dir else 256 
+    concrete_func = tf.function(lambda inputs: model.predict_multi(inputs)).get_concrete_function(
+        tf.TensorSpec([1, inp, inp, 3], dtype=tf.float16))
+    frozen_func, graph_def = convert_variables_to_constants_v2_as_graph(concrete_func)
+
+    with tf.Graph().as_default() as graph:
+        tf.graph_util.import_graph_def(graph_def, name='')
+
+        run_meta = tf.compat.v1.RunMetadata()
+        opts = tf.compat.v1.profiler.ProfileOptionBuilder.float_operation()
+        flops = tf.compat.v1.profiler.profile(graph=graph, run_meta=run_meta, cmd="op", options=opts)
+
+        # print(flops.total_float_ops // 2)
+        return flops.total_float_ops / 2e6
+
+
+def compute_macs(model_dir, inp=(256, 256)):
+    from tensorflow.compat.v1.profiler import profile, ProfileOptionBuilder
+    #from tensorflow.python.profiler.option_builder import ProfileOptionBuilder
+    import tensorflow as tf
+
+    model = tf.saved_model.load(model_dir)
+    input_signature = [
+        tf.TensorSpec(shape=(1, *inp, 3), dtype=tf.float16)
+        ]
+    forward_pass = tf.function(
+            model.predict_multi,
+            input_signature=input_signature)
+    #from tensorflow.python.framework.convert_to_constants import convert_variables_to_constants_v2_as_graph
+    #frozen_func, graph_def = convert_variables_to_constants_v2_as_graph(forward_pass.get_concrete_function())
+    graph_info = profile(forward_pass.get_concrete_function().graph, cmd='op',
+                            options=ProfileOptionBuilder.float_operation())
+    flops = graph_info.total_float_ops // 2
+    print('MACs: {:,}'.format(flops))
