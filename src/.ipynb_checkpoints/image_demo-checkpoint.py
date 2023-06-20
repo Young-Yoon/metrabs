@@ -16,7 +16,7 @@ import spacepy
 model_folder = '/home/jovyan/runs/metrabs-exp/tconv1_in160/h36m_METRO_m3s_rand1/model/'
 model_detector_folder = "/home/jovyan/runs/metrabs-exp/models/eff2s_y4/model_multi"
 input_image_size = 160
-input_image = "../inaki/inaki_moving1/frame1.jpg"
+input_image = "/home/jovyan/data/inaki/inaki_moving1/frame1.jpg"
 save_name ="test.jpg"
 
 
