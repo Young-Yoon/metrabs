@@ -11,6 +11,7 @@ import matplotlib.patches as patches
 import itertools
 import spacepy
 import sys
+import json
 
 
 def load_coords(path):
@@ -29,6 +30,10 @@ skeleton = [(9, 8), (8, 7), (7, 10), (10, 11), (11, 12),
 data_root = '/home/jovyan/data/metrabs-processed/h36m/'
 exp_root = '/home/jovyan/runs/metrabs-exp/'
 
+cam_param = exp_root + "visualize/human36m-camera-parameters/camera-parameters.json"
+with open(cam_param, 'r') as j:
+     cam = json.loads(j.read())
+
 #model_folder = exp_root + 'tconv1_in112/h36m_METRO_m3s03_rand1_1500/model/'
 model_folder = [exp_root + p + '/model/' for p in sys.argv[1:-1]]
 for p in model_folder:
@@ -43,7 +48,7 @@ model_detector_folder = exp_root + "models/eff2s_y4/model_multi"
 model_d = tf.saved_model.load(model_detector_folder)
 det = model_d.detector
 
-model = [tf.saved_model.load(p) for p in model_folder]
+models = [tf.saved_model.load(p) for p in model_folder]
 print("Loading model is done")
 
 #for filename in glob.glob('Directions/*.jpg'): #assuming gif
@@ -54,17 +59,42 @@ frame_step = 5
 all_world_coords = []
 all_image_relpaths = []
 
+
+def plot_skeleton(axis, p, color='r'):
+    axis.scatter(p[:, 0], p[:, 1], p[:, 2], s=1, c=color)
+
+    for i, j in skeleton:
+        plt.plot([p[i, 0], p[j, 0]], [p[i, 1], p[j, 1]], [p[i, 2], p[j, 2]], color)
+        
+def get_crop(img0, x0, y0, w0, h0):
+    return np.array(img0)[int(y0):int(y0+h0), int(x0):int(x0+w0)]
+
+def get_pred(crop, in_size, mdl, camR):
+    res = cv2.resize(crop, dsize=(in_size, in_size), interpolation=cv2.INTER_CUBIC)
+    inp = res.astype(np.float16) / 256.
+    test = mdl(inp[np.newaxis,...], False)
+    test -= test[:, -1, np.newaxis]
+    tt = test[0,:,:]   # (1,17,3)  cam.R (1,3,3) cam.t (1,3,1)
+    return tt @ camR[0].T, res
+    
 for i_subj in [11]: # [9, 11]:
     number_activity=0    
     for activity, cam_id in itertools.product(data.h36m.get_activity_names(i_subj), range(4)):    
-        # print(activity, cam_id, number_activity)
-               
+            # print(activity, cam_id, number_activity)
+            im_arr = []
+            
             if not 'Directions' in activity: # number_activity==30:
                 continue
+            cam_p = cam['extrinsics']['S'+str(i_subj)][camera_names[cam_id]]
+            cam_rot = np.expand_dims(np.linalg.inv(np.array(cam_p['R'])), axis=0)  # (1,3,3)
+            cam_loc = np.expand_dims(np.array(cam_p['t'])[:,0], axis=0)            # (1,3)
+            
             camera_name = camera_names[cam_id]
             pose_folder = data_root + f'S{i_subj}/MyPoseFeatures'
             coord_path = f'{pose_folder}/D3_Positions/{activity}.cdf'
             world_coords = load_coords(coord_path)
+            world_coords -= world_coords[:, -1, np.newaxis]
+            
             n_frames_total = len(world_coords)       
             image_relfolder = data_root + f'S{i_subj}/Images/{activity}.{camera_name}'
 
@@ -81,6 +111,8 @@ for i_subj in [11]: # [9, 11]:
 
             out_test = np.zeros((total_frame,17,3))
             k=0
+            bboxes_gt = np.load(f'{data_root}/S{i_subj}/BBoxes/{activity}.{camera_name}.npy')
+
             for i_frame in range(0, n_frames_total, frame_step):
 
                 image_path = image_relfolder +"/" + str(i_frame)
@@ -95,45 +127,55 @@ for i_subj in [11]: # [9, 11]:
                 img = Image.open(image_path)
                 bbox =  model_d.detector.predict_single_image(img) 
 
+
                 x, y, wd, ht, conf = bbox[0]
-                crop = np.array(img)[int(y):int(y+ht), int(x):int(x+wd)]
-                pred = []
-                for i_m, mod in enumerate(model):
-                    res = cv2.resize(crop, dsize=(input_size[i_m], input_size[i_m]), interpolation=cv2.INTER_CUBIC)    
+                if wd < ht:
+                    y_sq, ht_sq = y, ht
+                    x_sq, wd_sq = x-(ht-wd)/2., ht
+                else:
+                    x_sq, wd_sq = x, wd
+                    y_sq, ht_sq = y-(wd-ht)/2., wd
+                x_gt, y_gt, wd_gt, ht_gt = bboxes_gt[i_frame]
 
-                    inp = res.astype(np.float16)
-                    inp /= 256.
-                    test = mod(inp[np.newaxis,...], False)
-
-                    xs = test.numpy()[0, :, 0]
-                    ys = test.numpy()[0, :, 1]
-                
-                    raw_output = test[0,:,:]
-                    i_root = -1                
-                    test -= test[:, i_root, np.newaxis]
-
-                    tt = test[0,:,:]
-                    pred.append(tt)
-
+                crop = get_crop(img, x, y, wd, ht)
+                crop_sq = get_crop(img, x_sq, y_sq, wd_sq, ht_sq)
+                crop_gt = get_crop(img, x_gt, y_gt, wd_gt, ht_gt)
+                pred_w, pred_w_gt, pred_w_sq, gt_w = [], [], [], world_coords[i_frame]
+                for i_m, model in enumerate(models):
+                    tw, res = get_pred(crop, input_size[i_m], model, cam_rot)
+                    tw_bb, res_bb = get_pred(crop_gt, input_size[i_m], model, cam_rot)
+                    tw_sq, res_sq = get_pred(crop_sq, input_size[i_m], model, cam_rot)
+                    pred_w.append(tw)
+                    pred_w_gt.append(tw_bb)
+                    pred_w_sq.append(tw_sq)
+                    # print(f"R {cam_rot} \n t {cam_loc} \ntestCam {tt} \ntestWorld{tw} \nGT_w{gt_w}")
+                            
     #            np.save("test", tt)
                 deg = 5
                 views = [(deg, deg-90), (deg, deg), (90-deg, deg-90)]
                 fsz = 2
-                fig = plt.figure(figsize=(fsz*len(model)+fsz, fsz*len(views)))
+                nmdl= len(models)
+                fig = plt.figure(figsize=(fsz*nmdl+fsz, fsz*len(views)))
                 # Add a 3D subplot
 
-                for i_m in range(len(model)):
-                    tt = pred[i_m]
-                    tt = tt.numpy()
+                for i_m in range(nmdl):
+                    #tt = pred[i_m].numpy()
+                    tw = pred_w[i_m].numpy()
+                    tw_bb = pred_w_gt[i_m].numpy()
+                    tw_sq = pred_w_sq[i_m].numpy()
                     #    tt = tt[[3, 4, 5, 0, 1, 2, 6, 7, 8, 9, 13, 14, 15, 10, 11, 12, 16], :]
-
+                    # print(tt, tw, gt_w, cam_rot, cam_loc)
                     for i_v in range(len(views)):
-                        ax = fig.add_subplot(len(views),len(model)+1,(len(model)+1)*i_v + i_m+2, projection='3d')
+                        ax = fig.add_subplot(len(views),nmdl+1,(nmdl+1)*i_v + i_m+2, projection='3d')
                         ax.view_init(*views[i_v])
-                        ax.scatter(tt[:, 0], -tt[:, 2], -tt[:, 1], s=1, c='r')
-
-                        for i, j in skeleton:
-                            plt.plot([tt[i, 0], tt[j, 0]], [-tt[i, 2], -tt[j, 2]], [-tt[i, 1], -tt[j, 1]], 'r')
+                        #plot_skeleton(ax, tt, 'r')
+                        plot_skeleton(ax, tw, 'r')
+                        #ax.scatter(tt[:, 0], -tt[:, 2], -tt[:, 1], s=1, c='r')
+                        #for i, j in skeleton:
+                        #   plt.plot([tt[i, 0], tt[j, 0]], [-tt[i, 2], -tt[j, 2]], [-tt[i, 1], -tt[j, 1]], 'r')
+                        plot_skeleton(ax, gt_w, 'g')
+                        # plot_skeleton(ax, tw_bb, 'y')
+                        plot_skeleton(ax, tw_sq, 'b')
 
                         #ax.set_xlabel('x')
                         #ax.set_ylabel('y')
@@ -142,22 +184,41 @@ for i_subj in [11]: # [9, 11]:
                         ax.set_xlim3d(-700, 700)
                         ax.set_zlim3d(-700, 700)
                         ax.set_ylim3d(-700, 700)
-                        ax.set_title(f"{model_name[i_m][-3].split('_')[2]}_in{input_size[i_m]}")
+                        if i_v == 0:
+                            ax.set_title(f"{model_name[i_m][-3].split('_')[2]}_in{input_size[i_m]}")
 
-                ax2 = fig.add_subplot(len(views),len(model)+1,1)
+                ax2 = fig.add_subplot(len(views),nmdl+1,1)
                 ax2.imshow(img)
                 rect = patches.Rectangle((x, y), wd, ht, linewidth=1, edgecolor='r', facecolor='none')
+                rect_gt = patches.Rectangle((x_gt, y_gt), wd_gt, ht_gt, linewidth=1, edgecolor='g', facecolor='none')
+                rect_sq = patches.Rectangle((x_sq, y_sq), wd_sq, ht_sq, linewidth=1, edgecolor='b', facecolor='none')
+                ax2.add_patch(rect_sq)
                 ax2.add_patch(rect)
+                ax2.add_patch(rect_gt)
                 ax2.set_title(f'S{i_subj}_{activity}_{cam_id}')
+                
+                ax3 = fig.add_subplot(len(views),nmdl+1,nmdl+2)
+                ax3.imshow(res)
 
+                ax4 = fig.add_subplot(len(views),nmdl+1,2*nmdl+3)
+                ax4.imshow(res_sq)
+                
                 plt.axis('off')
                 plt.savefig(save_path)
 
                 plt.close()
                 
+                img = cv2.imread(save_path)
+                h, w, c = img.shape
+                im_arr.append(img)
                 #out_test[k,:,:] = raw_output[:,:]
                 #k=k+1
 
+            out = cv2.VideoWriter(exp_root + "visualize/" + sys.argv[-1] + f'_S{i_subj}_{activity}.{camera_name}.mp4',  cv2.VideoWriter_fourcc(*'mp4v'), 12, (w, h))
+            for fr in im_arr:
+                out.write(fr)
+            out.release()
+            
             break
             #np.save(save_path)                
             number_activity =  number_activity+1
