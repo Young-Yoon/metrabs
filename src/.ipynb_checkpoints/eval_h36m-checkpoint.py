@@ -15,11 +15,23 @@ import options
 import paths
 import util
 from options import FLAGS
+import matplotlib.pyplot as plt
+# noinspection PyUnresolvedReferences
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib.patches import Rectangle
+#plt.switch_backend('TkAgg')
 
+import tfu3d
 
 def main():
+#    FLAGS.only_S11 =True
+
+    FLAGS.root_last= True
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--pred-path', type=str, default=None)
+    parser.add_argument('--save-path', type=str, default=None)
+    
     parser.add_argument('--procrustes', action=options.BoolAction)
     parser.add_argument('--only-S11', action=options.BoolAction)
     parser.add_argument('--seeds', type=int, default=1)
@@ -27,9 +39,13 @@ def main():
     # The root joint is the last if this is set, else the first
     parser.add_argument('--root-last', action=options.BoolAction)
     options.initialize(parser)
-    FLAGS.pred_path = util.ensure_absolute_path(FLAGS.pred_path, f'{paths.DATA_ROOT}/experiments')
+#    FLAGS.pred_path = util.ensure_absolute_path(FLAGS.pred_path, f'{paths.DATA_ROOT}/experiments')
+
+#    print("pred path : ", FLAGS.pred_path)
 
     all_image_relpaths, all_true3d = get_all_gt_poses()
+#    print(len(all_true3d))
+
     activities = np.array([re.search(f'Images/(.+?)\.', path)[1].split(' ')[0]
                            for path in all_image_relpaths])
 
@@ -38,7 +54,7 @@ def main():
         print(to_latex(mean_per_seed))
         print(to_latex(std_per_seed))
     else:
-        metrics = evaluate(FLAGS.pred_path, all_true3d, activities)
+        metrics = evaluate(FLAGS.pred_path, all_true3d, activities, all_image_relpaths )
         print(to_latex(metrics))
 
 
@@ -50,22 +66,88 @@ def evaluate_multiple_seeds(all_true3d, activities):
     return mean_per_seed, std_per_seed
 
 
-def evaluate(pred_path, all_true3d, activities):
+skeleton_gt = [(9, 8), (8, 7), (7, 10), (10, 11), (11, 12), 
+            (7, 13), (13, 14), (14, 15), (7, 6), (6, 16), 
+            (16, 3), (3, 4), (4, 5), (16, 0), (0, 1), (1, 2)]  # head
+
+skeleton = [(1, 2), (2, 3), (4, 5), (5, 6)]  # head
+
+
+# model jiont info :  [(9, 8), (8, 7), (7, 10), (10, 11), (11, 12), (7, 13), (13, 14), (14, 15), (7, 6), (6, 16), (16, 3), (3, 4), (4, 5), (16, 0), (0, 1), (1, 2)]
+
+from PIL import Image
+
+
+
+def evaluate(pred_path, all_true3d, activities, all_image_relpaths):
+#    print("lets get prediction pose ")
     all_pred3d = get_all_pred_poses(pred_path)
+#    print("all prediction pose : ", len(all_pred3d))
+#    print(all_pred3d)
     if len(all_pred3d) != len(all_true3d):
         raise Exception(f'Unequal sample count! Pred: {len(all_pred3d)}, GT: {len(all_true3d)}')
 
     i_root = -1 if FLAGS.root_last else 0
-    all_pred3d -= all_pred3d[:, i_root, np.newaxis]
+#    print("FLAGS.root_last ", FLAGS.root_last)
+    
     all_true3d -= all_true3d[:, i_root, np.newaxis]
+    all_pred3d -= all_pred3d[:, i_root, np.newaxis]
+    
+    MYDIR = (FLAGS.save_path +"/test/")
+    CHECK_FOLDER = os.path.isdir(MYDIR)
+
+    # If folder doesn't exist, then create it.
+    if not CHECK_FOLDER:
+        os.makedirs(MYDIR)
+        print("created folder : ", MYDIR)
+    else:
+        print(MYDIR, "folder already exists.")    
+    
+    for k in range(0,20):
+
+        tt = all_pred3d[k]
+        tt2 = all_true3d[k]
+
+        # Create a new figure
+        fig = plt.figure()
+        # Add a 3D subplot
+        ax = fig.add_subplot(122, projection='3d')
+        ax.scatter(tt[:, 0], tt[:, 1], tt[:, 2], s=10, c='g', alpha=1.0 )
+        ax.scatter(tt2[:, 0], tt2[:, 1], tt2[:, 2] , s=1, c='b' )
+        
+        for i, j in skeleton:
+#            plt.plot([tt[i, 0], tt[j, 0]], [-tt[i, 2], -tt[j, 2]], [-tt[i, 1], -tt[j, 1]], 'r')
+            plt.plot([tt[i, 0], tt[j, 0]], [tt[i, 1], tt[j, 1]], [tt[i, 2], tt[j, 2]], 'r')            
+#            plt.plot([tt2[i, 0], tt2[j, 0]], [tt2[i, 1], tt2[j, 1]], [tt2[i, 2], tt2[j, 2]], 'b', alpha=0.5)
+
+
+        for i, j in skeleton_gt:
+#            plt.plot([tt[i, 0], tt[j, 0]], [-tt[i, 2], -tt[j, 2]], [-tt[i, 1], -tt[j, 1]], 'r')
+            plt.plot([tt2[i, 0], tt2[j, 0]], [tt2[i, 1], tt2[j, 1]], [tt2[i, 2], tt2[j, 2]], 'b', alpha=0.3)
+        
+        # Set labels if necessary
+        ax.set_xlabel('X Label')
+        ax.set_ylabel('Y Label')
+        ax.set_zlabel('Z Label')
+        ax.set_xlim3d(-500, 500)
+        ax.set_zlim3d(-1000, 1000)
+        ax.set_ylim3d(-500, 500)
+
+        image = Image.open("/home/jovyan/data/metrabs-processed/"+all_image_relpaths[k])
+        ax2 = fig.add_subplot(121)
+        ax2.imshow(image)
+
+        # Save the figure to a file
+        plt.savefig( FLAGS.save_path +"/test/" + str(k)+'.png')
+#        plt.clf()
 
     ordered_activities = (
             'Directions Discussion Eating Greeting Phoning Posing Purchases ' +
             'Sitting SittingDown Smoking Photo Waiting Walking WalkDog WalkTogether').split()
-    if FLAGS.procrustes:
-        all_pred3d = tfu3d.rigid_align(all_pred3d, all_true3d, scale_align=True)
+
     dist = np.linalg.norm(all_true3d[:,9:,:] - all_pred3d, axis=-1)
     overall_mean_error = np.mean(dist)
+    print("overall mean errror : ", overall_mean_error)
     metrics = [np.mean(dist[activities == activity]) for activity in ordered_activities]
     metrics.append(overall_mean_error)
     return metrics
@@ -92,7 +174,9 @@ def get_all_gt_poses():
     all_world_coords = []
     all_image_relpaths = []
     for i_subj in [9, 11]:
+        
         for activity, cam_id in itertools.product(data.h36m.get_activity_names(i_subj), range(4)):
+            
             # Corrupt data in original release:
             # if i_subj == 11 and activity == 'Directions' and cam_id == 0:
             #    continue
@@ -104,9 +188,11 @@ def get_all_gt_poses():
             world_coords = world_coords[::frame_step]
             all_world_coords.append(world_coords)
             image_relfolder = f'h36m/S{i_subj}/Images/{activity}.{camera_name}'
+                        
             all_image_relpaths += [
                 f'{image_relfolder}/frame_{i_frame:06d}.jpg'
                 for i_frame in range(0, n_frames_total, frame_step)]
+            
 
     order = np.argsort(all_image_relpaths)
     all_world_coords = np.concatenate(all_world_coords, axis=0)[order]
