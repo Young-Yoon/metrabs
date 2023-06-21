@@ -42,7 +42,7 @@ for p in model_folder:
 
 model_name = [p.split("/") for p in model_folder]
 input_size = [112 if "112" in p[-4] else 160 if "160" in p[-4] else 256 for p in model_name]
-print(model_name[:][-4:-2], input_size)
+print(model_name, input_size)
 
 model_detector_folder = exp_root + "models/eff2s_y4/model_multi"
 model_d = tf.saved_model.load(model_detector_folder)
@@ -50,9 +50,6 @@ det = model_d.detector
 
 models = [tf.saved_model.load(p) for p in model_folder]
 print("Loading model is done")
-
-#for filename in glob.glob('Directions/*.jpg'): #assuming gif
-
 
 camera_names = ['55011271', '54138969', '58860488', '60457274']
 frame_step = 5
@@ -77,14 +74,14 @@ def get_pred(crop, in_size, mdl, camR):
     tt = test[0,:,:]   # (1,17,3)  cam.R (1,3,3) cam.t (1,3,1)
     return tt @ camR[0].T, res
     
-for i_subj in [11]: # [9, 11]:
+for i_subj in [9, 11]: # [9, 11]:
     number_activity=0    
     for activity, cam_id in itertools.product(data.h36m.get_activity_names(i_subj), range(4)):    
-            # print(activity, cam_id, number_activity)
+            print(activity, cam_id, number_activity)
             im_arr = []
             
-            if not 'Directions' in activity: # number_activity==30:
-                continue
+            #if not 'Directions' in activity: # number_activity==30:
+            #    continue
             cam_p = cam['extrinsics']['S'+str(i_subj)][camera_names[cam_id]]
             cam_rot = np.expand_dims(np.linalg.inv(np.array(cam_p['R'])), axis=0)  # (1,3,3)
             cam_loc = np.expand_dims(np.array(cam_p['t'])[:,0], axis=0)            # (1,3)
@@ -127,7 +124,6 @@ for i_subj in [11]: # [9, 11]:
                 img = Image.open(image_path)
                 bbox =  model_d.detector.predict_single_image(img) 
 
-
                 x, y, wd, ht, conf = bbox[0]
                 if wd < ht:
                     y_sq, ht_sq = y, ht
@@ -148,9 +144,7 @@ for i_subj in [11]: # [9, 11]:
                     pred_w.append(tw)
                     pred_w_gt.append(tw_bb)
                     pred_w_sq.append(tw_sq)
-                    # print(f"R {cam_rot} \n t {cam_loc} \ntestCam {tt} \ntestWorld{tw} \nGT_w{gt_w}")
                             
-    #            np.save("test", tt)
                 deg = 5
                 views = [(deg, deg-90), (deg, deg), (90-deg, deg-90)]
                 fsz = 2
@@ -163,24 +157,13 @@ for i_subj in [11]: # [9, 11]:
                     tw = pred_w[i_m].numpy()
                     tw_bb = pred_w_gt[i_m].numpy()
                     tw_sq = pred_w_sq[i_m].numpy()
-                    #    tt = tt[[3, 4, 5, 0, 1, 2, 6, 7, 8, 9, 13, 14, 15, 10, 11, 12, 16], :]
-                    # print(tt, tw, gt_w, cam_rot, cam_loc)
                     for i_v in range(len(views)):
                         ax = fig.add_subplot(len(views),nmdl+1,(nmdl+1)*i_v + i_m+2, projection='3d')
                         ax.view_init(*views[i_v])
-                        #plot_skeleton(ax, tt, 'r')
-                        plot_skeleton(ax, tw, 'r')
-                        #ax.scatter(tt[:, 0], -tt[:, 2], -tt[:, 1], s=1, c='r')
-                        #for i, j in skeleton:
-                        #   plt.plot([tt[i, 0], tt[j, 0]], [-tt[i, 2], -tt[j, 2]], [-tt[i, 1], -tt[j, 1]], 'r')
-                        plot_skeleton(ax, gt_w, 'g')
-                        # plot_skeleton(ax, tw_bb, 'y')
-                        plot_skeleton(ax, tw_sq, 'b')
+                        plot_skeleton(ax, gt_w, 'b')
+                        plot_skeleton(ax, tw_sq, 'r')
 
                         #ax.set_xlabel('x')
-                        #ax.set_ylabel('y')
-                        #ax.set_zlabel('z')
-
                         ax.set_xlim3d(-700, 700)
                         ax.set_zlim3d(-700, 700)
                         ax.set_ylim3d(-700, 700)
@@ -211,14 +194,10 @@ for i_subj in [11]: # [9, 11]:
                 img = cv2.imread(save_path)
                 h, w, c = img.shape
                 im_arr.append(img)
-                #out_test[k,:,:] = raw_output[:,:]
-                #k=k+1
 
             out = cv2.VideoWriter(exp_root + "visualize/" + sys.argv[-1] + f'_S{i_subj}_{activity}.{camera_name}.mp4',  cv2.VideoWriter_fourcc(*'mp4v'), 12, (w, h))
             for fr in im_arr:
                 out.write(fr)
             out.release()
             
-            break
-            #np.save(save_path)                
             number_activity =  number_activity+1
