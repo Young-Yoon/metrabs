@@ -30,16 +30,28 @@ def plot_skeleton(axis, p, color='r'):
 
 
 def get_crop(img0, x0, y0, w0, h0):
+    if x0 < 0: x0 = 0
+    if y0 < 0: y0 = 0
+    if x0 + w0 > img0.width: w0 = img0.width - x0
+    if y0 + h0 > img0.height: h0 = img0.height - y0
     return np.array(img0)[int(y0):int(y0 + h0), int(x0):int(x0 + w0)]
 
 
 def get_pred(img_crop, in_size, mdl, camera_rotate=None):
-    crop_resize = cv2.resize(img_crop, dsize=(in_size, in_size), interpolation=cv2.INTER_CUBIC)
-    inp = res.astype(np.float16) / 256.
+    crop_resize = cv2.resize(img_crop, (in_size, in_size), interpolation=cv2.INTER_CUBIC)
+    inp = crop_resize.astype(np.float16) / 256.
     test = mdl(inp[np.newaxis, ...], False)
     test -= test[:, -1, np.newaxis]
     tt = test[0, :, :]  # (1,17,3)  cam.R (1,3,3) cam.t (1,3,1)
-    return tt @ camera_rotate[0].T if camera_rotate else tt, crop_resize
+    return tt @ camera_rotate[0].T if camera_rotate is not None else tt, crop_resize
+
+
+def prep_dir(target_path):
+    if not os.path.isdir(target_path):
+        os.makedirs(target_path)
+        print("created folder : ", target_path)
+    else:
+        print(target_path, "folder already exists.")
 
 
 # usage: python viz.py model_path1 .. model_pathN ('h36m' or input_path) outname
@@ -77,7 +89,7 @@ deg = 5
 views = [(deg, deg - 90), (deg, deg), (90 - deg, deg - 90)]
 fsz = 2
 
-if input_path =='h36m':
+if input_path.startswith('h36m'):
     data_root = '/home/jovyan/data/metrabs-processed/h36m/'
 
     cam_param = exp_root + "visualize/human36m-camera-parameters/camera-parameters.json"
@@ -94,8 +106,8 @@ if input_path =='h36m':
                 print(activity, cam_id, number_activity)
                 im_arr = []
 
-                #if not 'Directions' in activity: # number_activity==30:
-                #    continue
+                if len(input_path) > 4 and not input_path[4:] in activity:
+                    continue
                 cam_p = cam['extrinsics']['S'+str(i_subj)][camera_names[cam_id]]
                 cam_rot = np.expand_dims(np.linalg.inv(np.array(cam_p['R'])), axis=0)  # (1,3,3)
                 cam_loc = np.expand_dims(np.array(cam_p['t'])[:,0], axis=0)            # (1,3)
@@ -111,12 +123,15 @@ if input_path =='h36m':
 
                 MYDIR = (exp_root + "visualize/" + outname + f'/S{i_subj}_{activity}.{camera_name}/')
 
+                prep_dir(MYDIR)
+                '''
                 CHECK_FOLDER = os.path.isdir(MYDIR)
                 if not CHECK_FOLDER:
                     os.makedirs(MYDIR)
                     print("created folder : ", MYDIR)
                 else:
                     print(MYDIR, "folder already exists.")
+                '''
 
                 total_frame = n_frames_total//5
 
@@ -217,10 +232,15 @@ else:
     if "inaki" in input_path:
         data_root += 'inaki/'
     total_frames = len(glob.glob(os.path.join(data_root, input_path, 'frame*.jpg')))
+    output_path = (exp_root + "/visualize/" + outname)
+    prep_dir(output_path)
+    prep_dir(output_path+'/'+input_path)
     im_arr = []
     for i_frame in range(0, total_frames, frame_step):
-        save_path = os.path.join(exp_root, "visualize", outname, input_path, f'frame_{i_frame}.jpg')
-        img = Image.open(os.path.join(data_root, input_path, f'frame{i_frame}.jpg'))
+        save_path = output_path + '/' + input_path + f'/frame_{i_frame}.jpg'
+        input_file = os.path.join(data_root, input_path, f'frame{i_frame}.jpg')
+        # print(input_file)
+        img = Image.open(input_file)
         bbox = model_d.detector.predict_single_image(img)
 
         x, y, wd, ht, conf = bbox[0]
@@ -274,8 +294,8 @@ else:
         h, w, c = img.shape
         im_arr.append(img)
 
-    out = cv2.VideoWriter(os.path.join(exp_root, "visualize", outname, f'{input_path}.mp4'),
-                          cv2.VideoWriter_fourcc(*'mp4v'), 12, (w, h))
+    out = cv2.VideoWriter(output_path + f'_{input_path}.mp4',
+                          cv2.VideoWriter_fourcc(*'mp4v'), 6, (w, h))
     for fr in im_arr:
         out.write(fr)
     out.release()
