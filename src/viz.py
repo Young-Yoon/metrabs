@@ -25,8 +25,28 @@ def load_coords(path):
 def plot_skeleton(axis, p, color='r'):
     axis.scatter(p[:, 0], p[:, 1], p[:, 2], s=1, c=color)
 
+    skeleton = [(9, 8), (8, 7), (7, 10), (10, 11), (11, 12),
+            (7, 13), (13, 14), (14, 15), (7, 6), (6, 16), 
+            (16, 3), (3, 4), (4, 5), (16, 0), (0, 1), (1, 2)]  # head
+
     for i, j in skeleton:
         plt.plot([p[i, 0], p[j, 0]], [p[i, 1], p[j, 1]], [p[i, 2], p[j, 2]], color)
+
+        
+
+def upper_plot_skeleton(axis, p, color='r'):
+    axis.scatter(p[:, 0], p[:, 1], p[:, 2], s=1, c=color)
+
+    skeleton = [(1, 2), (2, 3), (4, 5), (5, 6), (1,4)]  # head
+    axis.scatter(p[:, 0], p[:, 1], p[:, 2], s=1, c=color, alpha=1.0 )
+
+    for i, j in skeleton:
+        plt.plot([p[i, 0], p[j, 0]], [p[i, 1], p[j, 1]], [p[i, 2], p[j, 2]], color)            
+
+    center_shoulder = (p[1,:] + p[4,:])/2.0     
+    plt.plot([center_shoulder[0], p[0, 0]], [center_shoulder[1], p[0, 1]], [center_shoulder[2], p[0, 2]], color)            
+    plt.plot([center_shoulder[0], p[7, 0]], [center_shoulder[1], p[7, 1]], [center_shoulder[2], p[7, 2]], color)           
+        
 
 
 def get_crop(img0, x0, y0, w0, h0):
@@ -69,7 +89,7 @@ for p in model_folder:
         raise OSError("model_folder not exist" + p)
 
 model_name = [p.split("/") for p in model_folder]
-input_size = [112 if "112" in p[-4] else 160 if "160" in p[-4] else 256 for p in model_name]
+input_size = [112 if "112" in p else 160 if "160" in p else 256 for p in model_folders]
 print(model_name, input_size)
 
 model_detector_folder = exp_root + "models/eff2s_y4/model_multi"
@@ -80,9 +100,6 @@ models = [tf.saved_model.load(p) for p in model_folder]
 nmdl = len(models)
 print("Loading model is done")
 
-skeleton = [(9, 8), (8, 7), (7, 10), (10, 11), (11, 12),
-            (7, 13), (13, 14), (14, 15), (7, 6), (6, 16), 
-            (16, 3), (3, 4), (4, 5), (16, 0), (0, 1), (1, 2)]  # head
 
 frame_step = 5
 deg = 5
@@ -177,16 +194,18 @@ if input_path.startswith('h36m'):
                     fig = plt.figure(figsize=(fsz*nmdl+fsz, fsz*len(views)))
                     # Add a 3D subplot
 
-                    for i_m in range(nmdl):
+                    for i_m in range(nmdl):                        
                         #tt = pred[i_m].numpy()
                         tw = pred_w[i_m].numpy()
                         tw_bb = pred_w_gt[i_m].numpy()
                         tw_sq = pred_w_sq[i_m].numpy()
+                        plot_fn = plot_skeleton if len(tw_sq) > 8 else upper_plot_skeleton
+
                         for i_v in range(len(views)):
                             ax = fig.add_subplot(len(views),nmdl+1,(nmdl+1)*i_v + i_m+2, projection='3d')
                             ax.view_init(*views[i_v])
                             plot_skeleton(ax, gt_w, 'b')
-                            plot_skeleton(ax, tw_sq, 'r')
+                            plot_fn(ax, tw_sq, 'r')
 
                             #ax.set_xlabel('x')
                             ax.set_xlim3d(-700, 700)
@@ -231,11 +250,14 @@ else:
     data_root = '/home/jovyan/data/'
     if "inaki" in input_path:
         data_root += 'inaki/'
+        frame_skip = 2
+        frame_rate = 15
     total_frames = len(glob.glob(os.path.join(data_root, input_path, 'frame*.jpg')))
-    output_path = (exp_root + "/visualize/" + outname)
+    output_path = (exp_root + "visualize/" + outname)
     prep_dir(output_path)
     prep_dir(output_path+'/'+input_path)
     im_arr = []
+    camR = np.array([[[1., 0, 0], [0, 0, 1.], [0, -1., 0]]])
     for i_frame in range(0, total_frames, frame_step):
         save_path = output_path + '/' + input_path + f'/frame_{i_frame}.jpg'
         input_file = os.path.join(data_root, input_path, f'frame{i_frame}.jpg')
@@ -254,7 +276,7 @@ else:
         crop_sq = get_crop(img, x_sq, y_sq, wd_sq, ht_sq)
         pred_w_sq = []
         for i_m, model in enumerate(models):
-            tt_sq, res_sq = get_pred(crop_sq, input_size[i_m], model)
+            tt_sq, res_sq = get_pred(crop_sq, input_size[i_m], model, camR)
             pred_w_sq.append(tt_sq)
 
         fig = plt.figure(figsize=(fsz * nmdl + fsz, fsz * len(views)))
@@ -262,10 +284,11 @@ else:
 
         for i_m in range(nmdl):
             tt_sq = pred_w_sq[i_m].numpy()
+            plot_fn = plot_skeleton if len(tt_sq) > 8 else upper_plot_skeleton
             for i_v in range(len(views)):
                 ax = fig.add_subplot(len(views), nmdl + 1, (nmdl + 1) * i_v + i_m + 2, projection='3d')
                 ax.view_init(*views[i_v])
-                plot_skeleton(ax, tt_sq, 'b')
+                plot_fn(ax, tt_sq, 'r')
 
                 # ax.set_xlabel('x')
                 ax.set_xlim3d(-700, 700)
@@ -295,7 +318,7 @@ else:
         im_arr.append(img)
 
     out = cv2.VideoWriter(output_path + f'_{input_path}.mp4',
-                          cv2.VideoWriter_fourcc(*'mp4v'), 6, (w, h))
+                          cv2.VideoWriter_fourcc(*'mp4v'), frame_rate/frame_skip, (w, h))
     for fr in im_arr:
         out.write(fr)
     out.release()
