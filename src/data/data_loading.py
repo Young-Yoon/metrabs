@@ -39,7 +39,6 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
         ex.camera.t[:] = 0
 
     box = ex.bbox
-    
     if FLAGS.upper_bbox:
         y_height = box[3]    
         bbox_ratio =  FLAGS.upper_bbox_ratio
