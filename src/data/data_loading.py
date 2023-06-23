@@ -24,6 +24,7 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
     background_rng = util.new_rng(rng)
     geom_rng = util.new_rng(rng)
     partial_visi_rng = util.new_rng(rng)
+    top_bbox_rng = utll.new_rng(rng)
 
     output_side = FLAGS.proc_side
     output_imshape = (output_side, output_side)
@@ -37,7 +38,12 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
         ex.world_coords -= ex.camera.t
         ex.camera.t[:] = 0
 
-    box = ex.bbox
+    box = ex.bbox    
+    y_height = box[3]    
+    top_ratio = top_bbox_rng.uniform(0.4, 0.6)
+    go_up= y_height*top_ratio
+    box[3] = go_up
+    
     if 'surreal' in ex.image_path.lower():
         # Surreal images are flipped wrong in the official dataset release
         box = box.copy()
