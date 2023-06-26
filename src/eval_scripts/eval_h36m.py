@@ -64,15 +64,23 @@ def evaluate(pred_path, all_true3d, activities):
             'Sitting SittingDown Smoking Photo Waiting Walking WalkDog WalkTogether').split()
     if FLAGS.procrustes:
         all_pred3d = tfu3d.rigid_align(all_pred3d, all_true3d, scale_align=True)
-    dist = np.linalg.norm(all_true3d[:,9:,:] - all_pred3d, axis=-1)
+    if all_pred3d.shape[1] == 8:
+        dist = np.linalg.norm(all_true3d[:,9:,:] - all_pred3d, axis=-1)
+        mean_dist_lower = None
+    else:
+        dist = np.linalg.norm(all_true3d - all_pred3d, axis=-1)
+        mean_dist_upper = np.mean(np.linalg.norm(all_true3d[:,9:,:] - all_pred3d[:,9:,:], axis=-1))
+        mean_dist_lower = np.mean(np.linalg.norm(all_true3d[:,:9,:] - all_pred3d[:,:9,:], axis=-1))
     overall_mean_error = np.mean(dist)
     metrics = [np.mean(dist[activities == activity]) for activity in ordered_activities]
     metrics.append(overall_mean_error)
+    if mean_dist_lower is not None:
+        metrics.extend([mean_dist_upper, mean_dist_lower])
     return metrics
 
 
 def to_latex(numbers):
-    return ' & '.join([f'{x:.1f}' for x in numbers])
+    return ', '.join([f'{x:.1f}' for x in numbers])
 
 
 def load_coords(path):
