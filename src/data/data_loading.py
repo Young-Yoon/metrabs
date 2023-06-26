@@ -39,10 +39,13 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
         ex.camera.t[:] = 0
 
     box = ex.bbox    
-    y_height = box[3]    
-    top_ratio = top_bbox_rng.uniform(0.4, 0.6)
-    go_up= y_height*top_ratio
-    box[3] = go_up
+    
+    if FLAGS.upper_bbox:
+        y_height = box[3]    
+        bbox_ratio =  FLAGS.upper_bbox_ratio
+        top_ratio = top_bbox_rng.uniform(bbox_ratio[0], bbox_ratio[1])
+        go_up= y_height*top_ratio
+        box[3] = go_up
     
     if 'surreal' in ex.image_path.lower():
         # Surreal images are flipped wrong in the official dataset release

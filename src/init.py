@@ -177,6 +177,9 @@ def get_parser():
     parser.add_argument('--output-joints', type=str, default=None,
                         action=options.HyphenToUnderscoreAction)
     parser.add_argument('--output-upper-joints', action=options.BoolAction, default=False)
+    parser.add_argument('--upper-bbox', action=options.BoolAction, default=False)
+    parser.add_argument('--upper-bbox-ratio', nargs=2, type=float, default=[0.4, 0.6])
+
     parser.add_argument('--backbone', type=str, default='resnet50V2',
                         help='Backbone of the predictor network.')
     parser.add_argument('--mobilenet-alpha', type=float, default=1.0, help='alpha of the MobileNetV3')
