@@ -20,8 +20,10 @@ class Metro(keras.Model):
         self.backbone = backbone
         self.joint_names = tf.Variable(np.array(joint_info.names), trainable=False)
         self.joint_edges = tf.Variable(np.array(joint_info.stick_figure_edges), trainable=False)
-#        n_raw_points = 32 if FLAGS.transform_coords else joint_info.n_joints
-        n_raw_points = 8
+        if FLAGS.output_upper_joints:
+            n_raw_points = 8
+        else:
+            n_raw_points = 32 if FLAGS.transform_coords else joint_info.n_joints
         self.heatmap_head = Head3D(n_points=n_raw_points)
         if FLAGS.transform_coords:
             self.recombination_weights = tf.constant(
@@ -101,7 +103,8 @@ class MetroTrainer(models.model_trainer.ModelTrainer):
 #         print(self.joint_info_2d.ids)
         
 #         print("matching joint ids 3d")
-        joint_ids_3d= [[6], [5], [4], [1], [2], [3]]
+        if FLAGS.output_upper_joints:
+            joint_ids_3d= [[6], [5], [4], [1], [2], [3]]
 #        print(joint_ids_3d)
         
         def get_2dlike_joints(coords):
@@ -129,15 +132,15 @@ class MetroTrainer(models.model_trainer.ModelTrainer):
         # 3D BATCH
         ####################  index starts from 0        
         # 'htop': 9, 'lsho': 10, 'lelb': 11, 'lwri': 12, 'rsho': 13, 'relb': 14, 'rwri': 15, 'pelv': 16})
-        
+        joint_index_start = 9 if FLAGS.output_upper_joints else 0 
         
         coords3d_true_rootrel = tfu3d.center_relative_pose(
-            inps.coords3d_true[:,9:,:], inps.joint_validity_mask[:,9:], FLAGS.mean_relative)
+            inps.coords3d_true[:, joint_index_start:, :], inps.joint_validity_mask[:, joint_index_start:], FLAGS.mean_relative)
         coords3d_pred_rootrel = tfu3d.center_relative_pose(
-            preds.coords3d_rel_pred, inps.joint_validity_mask[:,9:], FLAGS.mean_relative)
+            preds.coords3d_rel_pred, inps.joint_validity_mask[:, joint_index_start:], FLAGS.mean_relative)
 
         rootrel_absdiff = tf.abs((coords3d_true_rootrel - coords3d_pred_rootrel) / 1000)
-        losses.loss3d = tfu.reduce_mean_masked(rootrel_absdiff, inps.joint_validity_mask[:,9:])
+        losses.loss3d = tfu.reduce_mean_masked(rootrel_absdiff, inps.joint_validity_mask[:, joint_index_start:])
 
         ####################
         # 2D BATCH
@@ -151,13 +154,13 @@ class MetroTrainer(models.model_trainer.ModelTrainer):
 #         print("inp coords2d true",  inps.coords2d_true_2d[:,6:,:].shape)
 #         print("inp coords2d true mask",  inps.joint_validity_mask_2d[:,6:])
 #        print(" flag mean releative",  FLAGS.mean_relative)
-        
+        joint_index_start = 6 if FLAGS.output_upper_joints else 0
         
         preds.coords2d_pred_2d = models.util.align_2d_skeletons(
-            preds.coords2d_pred_2d, inps.coords2d_true_2d[:,6:,:], inps.joint_validity_mask_2d[:,6:])
+            preds.coords2d_pred_2d, inps.coords2d_true_2d[:, joint_index_start:, :], inps.joint_validity_mask_2d[:, joint_index_start:])
         losses.loss2d = tfu.reduce_mean_masked(
-            tf.abs((inps.coords2d_true_2d[:,6:,:] - preds.coords2d_pred_2d) * scale_2d),
-            inps.joint_validity_mask_2d[:,6:])
+            tf.abs((inps.coords2d_true_2d[:, joint_index_start:, :] - preds.coords2d_pred_2d) * scale_2d),
+            inps.joint_validity_mask_2d[:, joint_index_start:])
 
         losses.loss = losses.loss3d + FLAGS.loss2d_factor * losses.loss2d
 #        print(tt)
@@ -168,4 +171,5 @@ class MetroTrainer(models.model_trainer.ModelTrainer):
     def compute_metrics(self, inps, preds):
 #        print("when we use it ? ")
         
-        return models.eval_metrics.compute_pose3d_metrics_j8(inps, preds)
+        return models.eval_metrics.compute_pose3d_metrics_j8(inps, preds) if FLAGS.output_upper_joints else models.eval_metrics.compute_pose3d_metrics(inps, preds) 
+
