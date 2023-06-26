@@ -252,6 +252,11 @@ else:
         data_root += 'inaki/'
         frame_skip = 2
         frame_rate = 15
+    if "kapadia" in input_path:
+        data_root += 'kapadia/'
+        frame_skip = 2
+        frame_rate = 15
+
     total_frames = len(glob.glob(os.path.join(data_root, input_path, 'frame*.jpg')))
     output_path = (exp_root + "visualize/" + outname)
     prep_dir(output_path)
