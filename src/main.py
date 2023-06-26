@@ -294,11 +294,17 @@ def predict():
         coords3d_pred = r.coords3d_pred_abs
     except AttributeError:
         coords3d_pred = r.coords3d_rel_pred
+    
+    print(coords3d_pred.shape)
 
     coords3d_pred_world = tf.einsum(
         'nCc, njc->njC', r.rot_to_world, coords3d_pred) + tf.expand_dims(r.cam_loc, 1)
-    coords3d_pred_world = models.util.select_skeleton(
-        coords3d_pred_world, model_joint_info, FLAGS.output_joints).numpy()
+    print(coords3d_pred.shape)
+    
+#     coords3d_pred_world = models.util.select_skeleton(
+#         coords3d_pred_world, model_joint_info, FLAGS.output_joints).numpy()
+#     print(coords3d_pred_world.shape)
+    
     np.savez(FLAGS.pred_path, image_path=r.image_path, coords3d_pred_world=coords3d_pred_world)
 
 
