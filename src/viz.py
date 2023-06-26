@@ -89,7 +89,7 @@ for p in model_folder:
         raise OSError("model_folder not exist" + p)
 
 model_name = [p.split("/") for p in model_folder]
-input_size = [112 if "112" in p else 160 if "160" in p else 256 for p in model_folders]
+input_size = [112 if "112" in p else 160 if "160" in p else 128 if "128" in p else 256 for p in model_folders]
 print(model_name, input_size)
 
 model_detector_folder = exp_root + "models/eff2s_y4/model_multi"
@@ -105,6 +105,7 @@ frame_step = 5
 deg = 5
 views = [(deg, deg - 90), (deg, deg), (90 - deg, deg - 90)]
 fsz = 2
+use_detector=True
 
 if input_path.startswith('h36m'):
     data_root = '/home/jovyan/data/metrabs-processed/h36m/'
@@ -268,17 +269,20 @@ else:
         input_file = os.path.join(data_root, input_path, f'frame{i_frame}.jpg')
         # print(input_file)
         img = Image.open(input_file)
-        bbox = model_d.detector.predict_single_image(img)
+        if use_detector:
+            bbox = model_d.detector.predict_single_image(img)
 
-        x, y, wd, ht, conf = bbox[0]
-        if wd < ht:
-            y_sq, ht_sq = y, ht
-            x_sq, wd_sq = x - (ht - wd) / 2., ht
+            x, y, wd, ht, conf = bbox[0]
+            if wd < ht:
+                y_sq, ht_sq = y, ht
+                x_sq, wd_sq = x - (ht - wd) / 2., ht
+            else:
+                x_sq, wd_sq = x, wd
+                y_sq, ht_sq = y - (wd - ht) / 2., wd
+
+            crop_sq = get_crop(img, x_sq, y_sq, wd_sq, ht_sq)
         else:
-            x_sq, wd_sq = x, wd
-            y_sq, ht_sq = y - (wd - ht) / 2., wd
-
-        crop_sq = get_crop(img, x_sq, y_sq, wd_sq, ht_sq)
+            crop_sq = np.array(img)
         pred_w_sq = []
         for i_m, model in enumerate(models):
             tt_sq, res_sq = get_pred(crop_sq, input_size[i_m], model, camR)
