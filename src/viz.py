@@ -12,6 +12,7 @@ import itertools
 import spacepy
 import sys
 import json
+from tqdm import tqdm
 
 
 def load_coords(path):
@@ -269,7 +270,7 @@ def plot_wild(input_dir, data_path=data_root, frame_step=1, frame_rate=15):
     prep_dir(output_path+'/'+input_dir)
     im_arr = []
     camR = np.array([[[1., 0, 0], [0, 0, 1.], [0, -1., 0]]])
-    for i_frame in range(0, total_frames, frame_step):
+    for i_frame in tqdm(range(0, total_frames, frame_step)):
         save_path = output_path + '/' + input_dir + f'/frame_{i_frame}.jpg'
         input_file = os.path.join(data_path, input_dir, f'frame{i_frame}.jpg')
         # print(input_file)
@@ -339,10 +340,11 @@ def plot_wild(input_dir, data_path=data_root, frame_step=1, frame_rate=15):
 
 if input_path == 'all':
     for test_set in ['inaki', 'kapadia']:
-        for subdir in os.listdir(os.path.join(data_root, test_set)):
+        for subdir in sorted(os.listdir(os.path.join(data_root, test_set))):
             if not os.path.isfile(os.path.join(data_root, test_set, subdir)):
                 print(subdir)
                 plot_wild(subdir)
+#                 exit()
     plot_h36m()
 elif input_path.startswith('h36m'):
     plot_h36m(input_path[4:])
