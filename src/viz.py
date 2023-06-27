@@ -75,12 +75,19 @@ def prep_dir(target_path):
 
 
 # usage: python viz.py model_path1 .. model_pathN ('h36m' or input_path) outname
+#     or python viz.py model_path
 args = sys.argv[1:]
-outname = args[-1]
-input_path = args[-2]
-model_folders = args[:-2]
+if len(args) == 1:
+    model_folders = args
+    outname = args[0].replace('/', '_')
+    input_path = 'all'
+else:
+    outname = args[-1]
+    input_path = args[-2]
+    model_folders = args[:-2]
 
 exp_root = '/home/jovyan/runs/metrabs-exp/'
+data_root = '/home/jovyan/data/'
 
 #model_folder = exp_root + 'tconv1_in112/h36m_METRO_m3s03_rand1_1500/model/'
 model_folder = [exp_root + p + '/model/' for p in model_folders]
@@ -100,16 +107,12 @@ models = [tf.saved_model.load(p) for p in model_folder]
 nmdl = len(models)
 print("Loading model is done")
 
-
-frame_step = 5
 deg = 5
 views = [(deg, deg - 90), (deg, deg), (90 - deg, deg - 90)]
 fsz = 2
 use_detector=True
 
-if input_path.startswith('h36m'):
-    data_root = '/home/jovyan/data/metrabs-processed/h36m/'
-
+def plot_h36m(act_key=None, frame_step=5, data_path=data_root+'metrabs-processed/h36m/'):
     cam_param = exp_root + "visualize/human36m-camera-parameters/camera-parameters.json"
     with open(cam_param, 'r') as j:
          cam = json.loads(j.read())
@@ -124,20 +127,20 @@ if input_path.startswith('h36m'):
                 print(activity, cam_id, number_activity)
                 im_arr = []
 
-                if len(input_path) > 4 and not input_path[4:] in activity:
+                if act_key is not None and not act_key in activity:
                     continue
                 cam_p = cam['extrinsics']['S'+str(i_subj)][camera_names[cam_id]]
                 cam_rot = np.expand_dims(np.linalg.inv(np.array(cam_p['R'])), axis=0)  # (1,3,3)
                 cam_loc = np.expand_dims(np.array(cam_p['t'])[:,0], axis=0)            # (1,3)
 
                 camera_name = camera_names[cam_id]
-                pose_folder = data_root + f'S{i_subj}/MyPoseFeatures'
+                pose_folder = data_path + f'S{i_subj}/MyPoseFeatures'
                 coord_path = f'{pose_folder}/D3_Positions/{activity}.cdf'
                 world_coords = load_coords(coord_path)
                 world_coords -= world_coords[:, -1, np.newaxis]
 
                 n_frames_total = len(world_coords)
-                image_relfolder = data_root + f'S{i_subj}/Images/{activity}.{camera_name}'
+                image_relfolder = data_path + f'S{i_subj}/Images/{activity}.{camera_name}'
 
                 MYDIR = (exp_root + "visualize/" + outname + f'/S{i_subj}_{activity}.{camera_name}/')
 
@@ -151,11 +154,11 @@ if input_path.startswith('h36m'):
                     print(MYDIR, "folder already exists.")
                 '''
 
-                total_frame = n_frames_total//5
+                total_frame = n_frames_total//frame_step
 
                 out_test = np.zeros((total_frame,17,3))
                 k=0
-                bboxes_gt = np.load(f'{data_root}/S{i_subj}/BBoxes/{activity}.{camera_name}.npy')
+                bboxes_gt = np.load(f'{data_path}/S{i_subj}/BBoxes/{activity}.{camera_name}.npy')
 
                 for i_frame in range(0, n_frames_total, frame_step):
 
@@ -247,26 +250,22 @@ if input_path.startswith('h36m'):
 
                 number_activity =  number_activity+1
 
-else:
-    data_root = '/home/jovyan/data/'
-    if "inaki" in input_path:
-        data_root += 'inaki/'
-        frame_skip = 2
-        frame_rate = 15
-    if "kapadia" in input_path:
-        data_root += 'kapadia/'
-        frame_skip = 2
-        frame_rate = 15
 
-    total_frames = len(glob.glob(os.path.join(data_root, input_path, 'frame*.jpg')))
+def plot_wild(input_dir, data_path=data_root, frame_step=1, frame_rate=15):
+    if "inaki" in input_dir:
+        data_path += 'inaki/'
+    if "kapadia" in input_dir:
+        data_path += 'kapadia/'
+
+    total_frames = len(glob.glob(os.path.join(data_path, input_dir, 'frame*.jpg')))
     output_path = (exp_root + "visualize/" + outname)
     prep_dir(output_path)
-    prep_dir(output_path+'/'+input_path)
+    prep_dir(output_path+'/'+input_dir)
     im_arr = []
     camR = np.array([[[1., 0, 0], [0, 0, 1.], [0, -1., 0]]])
     for i_frame in range(0, total_frames, frame_step):
-        save_path = output_path + '/' + input_path + f'/frame_{i_frame}.jpg'
-        input_file = os.path.join(data_root, input_path, f'frame{i_frame}.jpg')
+        save_path = output_path + '/' + input_dir + f'/frame_{i_frame}.jpg'
+        input_file = os.path.join(data_path, input_dir, f'frame{i_frame}.jpg')
         # print(input_file)
         img = Image.open(input_file)
         if use_detector:
@@ -326,8 +325,21 @@ else:
         h, w, c = img.shape
         im_arr.append(img)
 
-    out = cv2.VideoWriter(output_path + f'_{input_path}.mp4',
-                          cv2.VideoWriter_fourcc(*'mp4v'), frame_rate/frame_skip, (w, h))
+    out = cv2.VideoWriter(output_path + f'_{input_dir}.mp4',
+                          cv2.VideoWriter_fourcc(*'mp4v'), frame_rate/frame_step, (w, h))
     for fr in im_arr:
         out.write(fr)
     out.release()
+
+if input_path == 'all':
+    for test_set in ['inaki', 'kapadia']:
+        for subdir in os.listdir(os.path.join(data_root, test_set)):
+            if not os.path.isfile(os.path.join(data_root, test_set, subdir)):
+                print(subdir)
+                plot_wild(subdir)
+    plot_h36m()
+elif input_path.startswith('h36m'):
+    plot_h36m(input_path[4:])
+else:
+    plot_wild(input_path)
+
