@@ -121,9 +121,13 @@ def plot_h36m(act_key=None, frame_step=5, data_path=data_root+'metrabs-processed
     all_world_coords = []
     all_image_relpaths = []
 
-    for i_subj in [9, 11]: # [9, 11]:
+    for i_subj in [11]: # [9, 11]:
         number_activity=0
         for activity, cam_id in itertools.product(data.h36m.get_activity_names(i_subj), range(4)):
+                
+                if number_activity==10:
+                    break
+                
                 print(activity, cam_id, number_activity)
                 im_arr = []
 
@@ -173,8 +177,10 @@ def plot_h36m(act_key=None, frame_step=5, data_path=data_root+'metrabs-processed
 
                     img = Image.open(image_path)
                     bbox = model_d.detector.predict_single_image(img)
-
-                    x, y, wd, ht, conf = bbox[0]
+                    if len(bbox) == 0:
+                        x, y, wd, ht = 0, 0, img.width, img.height
+                    else:
+                        x, y, wd, ht, conf = bbox[0]
                     if wd < ht:
                         y_sq, ht_sq = y, ht
                         x_sq, wd_sq = x-(ht-wd)/2., ht
