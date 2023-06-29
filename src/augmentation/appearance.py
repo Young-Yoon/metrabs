@@ -8,6 +8,9 @@ import util
 from options import FLAGS
 from tfu import TRAIN
 
+def rounded_int_tuple(p):
+    return tuple(np.round(p).astype(int))
+
 
 def augment_appearance(im, learning_phase, occlude_prob, rng):
     occlusion_rng = util.new_rng(rng)
@@ -46,8 +49,12 @@ def object_occlude(im, rng, inplace=True):
     occluders = augmentation.voc_loader.load_occluders()
 
     for i in range(count):
-        occluder, occ_mask = util.choice(occluders, rng)
-        rescale_factor = rng.uniform(0.2, 1.0) * factor * FLAGS.occlude_aug_scale
+        while(1):
+            occluder, occ_mask = util.choice(occluders, rng)
+            rescale_factor = rng.uniform(0.2, 1.0) * factor * FLAGS.occlude_aug_scale
+
+            if np.round(occ_mask.shape[0] * rescale_factor).astype(int)  > 1 and  np.round(occ_mask.shape[1] * rescale_factor).astype(int)  >1:
+                break
 
         occ_mask = improc.resize_by_factor(occ_mask, rescale_factor)
         occluder = improc.resize_by_factor(occluder, rescale_factor)
