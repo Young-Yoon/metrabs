@@ -68,6 +68,11 @@ def make_h36m_partial(*args, **kwargs):
     return data.h36m.make_h36m(*args, **kwargs, partial_visibility=True)
 
 
+def make_sway(*args, **kwargs):
+    import data.sway
+    return data.sway.make_sway(*args, **kwargs)
+
+
 def make_mpi_inf_3dhp():
     import data.mpi_inf_3dhp
     return data.mpi_inf_3dhp.make_mpi_inf_3dhp()
