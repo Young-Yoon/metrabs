@@ -250,7 +250,7 @@ def plot_h36m(act_key=None, frame_step=5, data_path=data_root+'metrabs-processed
                     h, w, c = img.shape
                     im_arr.append(img)
 
-                out = cv2.VideoWriter(exp_root + "visualize/" + outname + f'_S{i_subj}_{activity}.{camera_name}.mp4',  cv2.VideoWriter_fourcc(*'mp4v'), 12, (w, h))
+                out = cv2.VideoWriter(exp_root + "visualize/" + outname + f'/S{i_subj}_{activity}.{camera_name}.mp4',  cv2.VideoWriter_fourcc(*'mp4v'), 12, (w, h))
                 for fr in im_arr:
                     out.write(fr)
                 out.release()
@@ -332,7 +332,7 @@ def plot_wild(input_dir, data_path=data_root, frame_step=1, frame_rate=15):
         h, w, c = img.shape
         im_arr.append(img)
 
-    out = cv2.VideoWriter(output_path + f'_{input_dir}.mp4',
+    out = cv2.VideoWriter(output_path + f'/{input_dir}.mp4',
                           cv2.VideoWriter_fourcc(*'mp4v'), frame_rate/frame_step, (w, h))
     for fr in im_arr:
         out.write(fr)
