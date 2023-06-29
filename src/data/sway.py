@@ -65,6 +65,8 @@ def make_sway():
             seq_path = os.path.join(root_sway, 'sway61769', seq_name)
             intrinsics = np.load(os.path.join(seq_path, "intrinsics.npy"))
             extrinsics = np.load(os.path.join(seq_path, "extrinsics.npy"))
+            if np.isnan(extrinsics).any() or np.isnan(intrinsics).any():
+                continue
             camera = cameralib.Camera(
                 extrinsic_matrix=extrinsics, intrinsic_matrix=intrinsics,
                 world_up=(0, 1, 0))
@@ -73,8 +75,12 @@ def make_sway():
 
             #keypoints = json.load(open(os.path.join(seq_path, "keypts2d.json"), 'r'))['key_points']
             world_pose3d = np.load(os.path.join(seq_path, "wspace_poses3d.npy"))
+            if np.isnan(world_pose3d).any():
+                continue
             #cam_pose3d = np.load(os.path.join(seq_path, "cspace-poses3d.npy"))
             bbox = np.load(os.path.join(seq_path, "bbox.npy"))
+            if np.isnan(bbox).any():
+                continue
             n_frames = world_pose3d.shape[0]
             prev_coords = None
             
