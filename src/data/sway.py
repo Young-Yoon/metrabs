@@ -1,15 +1,5 @@
-# import glob
-#import functools
-#import itertools
-# import os
 import os.path
-#import xml.etree.ElementTree
-
 import numpy as np
-
-
-#import transforms3d
-
 import cameralib
 import data.datasets3d as ps3d
 import paths
@@ -49,12 +39,14 @@ def vis(imagepath, projected_2d, bbox, keypoint_2d=None):
 def make_sway():
     root_sway = f'{paths.DATA_ROOT}/sway'
     joint_names = (
-        'hips,lhip,rhip,spin,lkne,rkne,spi1,lank,rank,spi2,ltoe,rtoe,'
-        'neck,lsho,rsho,head,luar,ruar,lelb,relb,lwri,rwri'.split(','))
+        # 22 smpl joints
+        #'hips,lhip,rhip,spin,lkne,rkne,spi1,lank,rank,spi2,ltoe,rtoe,'
+        #'neck,lsho,rsho,head,luar,ruar,lelb,relb,lwri,rwri'.split(','))
+        'head,lsho,lelb,lwri,rsho,relb,rwri,hips'.split(','))
     edges = (
-        'lwri-lelb-lsho-rsho-relb-rwri')  # ',head-(neck)-hips'
+        'lwri-lelb-luar-ruar-relb-rwri,head-hips')  # ',head-(neck)-hips'
     joint_info = ps3d.JointInfo(joint_names, edges)
-    i_relevant_joints = [15, 13, 18, 20, 14, 19, 21, 0]
+    i_relevant_joints = [15, 16, 18, 20, 17, 19, 21, 0]
     frame_step = 5
 
     def get_examples(phase, pool):
