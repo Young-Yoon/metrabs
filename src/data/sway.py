@@ -36,6 +36,7 @@ def vis(imagepath, projected_2d, bbox, keypoint_2d=None):
 
 
 @util.cache_result_on_disk(f'{paths.CACHE_DIR}/sway_last.pkl', min_time="2023-06-27T11:30:43")
+# @util.cache_result_on_disk(f'{paths.CACHE_DIR}/sway_last_tmptmp.pkl', min_time="2023-06-27T11:30:43")
 def make_sway():
     root_sway = f'{paths.DATA_ROOT}/sway'
 
@@ -103,10 +104,10 @@ def make_sway():
 
                 impath = f'sway/sway61769/{seq_name}/images/{i_frame+1:05d}.jpg'
                 ex = ps3d.Pose3DExample(impath, world_coords, bbox=bbox[i_frame], camera=camera)
-                # proj2d = camera.world_to_image(world_coords)
-                # print(f'key {proj2d}\nBBox{bbox[i_frame]}')
-                # vis(os.path.join(paths.DATA_ROOT, impath), proj2d, bbox[i_frame])
-                
+
+#                 print(f'key {proj2d}\nBBox{bbox[i_frame]}')
+#                 vis(os.path.join(paths.DATA_ROOT, impath), proj2d, bbox[i_frame])
+#                 exit()
 #                 new_image_relpath = impath.replace('sway/sway61769', 'sway_downscaled')
 #                 pool.apply_async(
 #                     make_efficient_example,

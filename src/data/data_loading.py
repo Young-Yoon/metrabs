@@ -39,7 +39,7 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
         ex.camera.t[:] = 0
 
     box = ex.bbox    
-    
+       
     if FLAGS.upper_bbox:
         y_height = box[3]    
         bbox_ratio =  FLAGS.upper_bbox_ratio
@@ -115,10 +115,16 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
         camcoords = cam.world_to_camera(world_coords)
 
     imcoords = cam.world_to_image(metric_world_coords)
-
+    
     # Load and reproject image
     image_path = util.ensure_absolute_path(ex.image_path)
     origsize_im = improc.imread_jpeg(image_path)
+    
+    ##############
+#     import matplotlib.pyplot as plt
+#     for coord in imcoords:
+#         plt.plot(coord[0], coord[1], "o", color="orange")
+    
     if 'surreal' in ex.image_path.lower():
         # Surreal images are flipped wrong in the official dataset release
         origsize_im = origsize_im[:, ::-1]
@@ -155,6 +161,23 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
     # Occlusion and color augmentation
     im = augmentation.appearance.augment_appearance(
         im, learning_phase, FLAGS.occlude_aug_prob, appearance_rng)
+    
+    ### Add zero padding on left or right
+    if FLAGS.zero_padding > 0:
+        crop_h, crop_w, _ = im.shape
+        pad_ratio = np.random.uniform(0, FLAGS.zero_padding)
+        if np.random.uniform() > 0.5: # left-right padding
+            side = int(crop_w * pad_ratio / 2)
+            im[:, :side] = 0
+            im[:, -side:] = 0
+        else:
+            side = int(crop_h * pad_ratio / 2)
+            im[:side, :] = 0
+            im[-side:, :] = 0
+    
+#     plt.imshow(im)
+
+    
     im = tfu.nhwc_to_std(im)
     im = improc.normalize01(im)
 
@@ -165,7 +188,11 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
 
     rot_to_orig_cam = ex.camera.R @ cam.R.T
     rot_to_world = cam.R.T
-
+    
+    ##############
+#     plt.savefig("tmptmptmp.png")
+#     exit()
+    
     return dict(
         image=im,
         intrinsics=np.float32(cam.intrinsic_matrix),
