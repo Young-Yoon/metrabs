@@ -101,13 +101,18 @@ class MetroTrainer(models.model_trainer.ModelTrainer):
 #         print("2d joint info ")
 #         print(self.joint_info_2d.names)
 #         print(self.joint_info_2d.ids)
+
         
+#         print("3d joint ids ")
+#         print(joint_ids_3d)
 #         print("matching joint ids 3d")
         if FLAGS.output_upper_joints:
             joint_ids_3d= [[6], [5], [4], [1], [2], [3]]
 #        print(joint_ids_3d)
-        
+#         print("check prediction ")
+#         print(preds.coords3d_pred_2d[..., :2])
         def get_2dlike_joints(coords):
+#            print(coords)
             return tf.stack(
                 [tf.reduce_mean(tf.gather(coords, ids, axis=1)[..., :2], axis=1)
                  for ids in joint_ids_3d], axis=1)

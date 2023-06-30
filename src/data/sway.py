@@ -35,18 +35,34 @@ def vis(imagepath, projected_2d, bbox, keypoint_2d=None):
 
 
 
-@util.cache_result_on_disk(f'{paths.CACHE_DIR}/sway.pkl', min_time="2023-06-27T11:30:43")
+@util.cache_result_on_disk(f'{paths.CACHE_DIR}/sway_ready.pkl', min_time="2023-06-27T11:30:43")
 def make_sway():
     root_sway = f'{paths.DATA_ROOT}/sway'
+
     joint_names = (
-        # 22 smpl joints
-        #'hips,lhip,rhip,spin,lkne,rkne,spi1,lank,rank,spi2,ltoe,rtoe,'
-        #'neck,lsho,rsho,head,luar,ruar,lelb,relb,lwri,rwri'.split(','))
-        'head,lsho,lelb,lwri,rsho,relb,rwri,hips'.split(','))
+        'rhip,rkne,rank,lhip,lkne,lank,tors,neck,head,htop,'
+        'lsho,lelb,lwri,rsho,relb,rwri,pelv'.split(','))
+
+    
+#     joint_names = (
+#         # 22 smpl joints
+#         'hips,lhip,rhip,spin,lkne,rkne,spi1,lank,rank,spi2,ltoe,rtoe,'
+#         'neck,lsho,rsho,head,luar,ruar,lelb,relb,lwri,rwri'.split(','))
+#         'head,lsho,lelb,lwri,rsho,relb,rwri,hips'.split(','))
+
     edges = (
-        'lwri-lelb-luar-ruar-relb-rwri,head-hips')  # ',head-(neck)-hips'
+        'htop-head-neck-lsho-lelb-lwri,neck-rsho-relb-rwri,'
+        'neck-tors-pelv-lhip-lkne-lank,pelv-rhip-rkne-rank')
+
+#     edges = (
+#         'htop-head-neck-lsho-lelb-lwri,neck-rsho-relb-rwri,'
+#         'neck-tors-pelv-lhip-lkne-lank,pelv-rhip-rkne-rank')
+
+
+#     edges = (
+#         'lwri-lelb-luar-ruar-relb-rwri,head-hips')  # ',head-(neck)-hips'
     joint_info = ps3d.JointInfo(joint_names, edges)
-    i_relevant_joints = [15, 16, 18, 20, 17, 19, 21, 0]
+    i_relevant_joints = [2 ,5 , 8, 1 ,4 ,7 , 9, 12, 15, 15, 16, 18, 20, 17, 19, 21, 0]
     frame_step = 5
 
     def get_examples(phase, pool):
