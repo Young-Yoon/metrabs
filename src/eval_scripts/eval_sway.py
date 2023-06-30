@@ -65,7 +65,7 @@ def get_all_gt_poses():
 
     with open(f'{root_sway}/test.txt', "r") as f:
         seq_names = [line.strip() for line in f.readlines()]
-    for seq_name in util.progressbar(seq_names[:3000]):
+    for seq_name in util.progressbar(seq_names):
         seq_path = os.path.join(root_sway, 'sway61769', seq_name)
         world_pose3d = np.load(os.path.join(seq_path, "wspace_poses3d.npy"))
         if np.isnan(world_pose3d).any():
