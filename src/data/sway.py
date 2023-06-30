@@ -62,10 +62,10 @@ def make_sway():
 #     edges = (
 #         'lwri-lelb-luar-ruar-relb-rwri,head-hips')  # ',head-(neck)-hips'
     joint_info = ps3d.JointInfo(joint_names, edges)
-    i_relevant_joints = [2 ,5 , 8, 1 ,4 ,7 , 9, 12, 15, 15, 16, 18, 20, 17, 19, 21, 0]
-    frame_step = 5
+    i_relevant_joints = [2, 5, 8, 1, 4, 7, 9, 12, 15, 15, 16, 18, 20, 17, 19, 21, 0]
 
     def get_examples(phase, pool):
+        frame_step = 15 if phase in {'train'} else 64
         result = []
         with open(f'{root_sway}/{phase}.txt', "r") as f:
             seq_names = [line.strip() for line in f.readlines()]
@@ -104,9 +104,9 @@ def make_sway():
 
                 impath = f'sway/sway61769/{seq_name}/images/{i_frame+1:05d}.jpg'
                 ex = ps3d.Pose3DExample(impath, world_coords, bbox=bbox[i_frame], camera=camera)
-                proj2d = camera.world_to_image(world_coords)
-                #print(f'key {proj2d}\nBBox{bbox[i_frame]}')
-                #vis(os.path.join(paths.DATA_ROOT, impath), proj2d, bbox[i_frame])
+                # proj2d = camera.world_to_image(world_coords)
+                # print(f'key {proj2d}\nBBox{bbox[i_frame]}')
+                # vis(os.path.join(paths.DATA_ROOT, impath), proj2d, bbox[i_frame])
                 
                 new_image_relpath = impath.replace('sway/sway61679', 'sway_downscaled')
                 pool.apply_async(

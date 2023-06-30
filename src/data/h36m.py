@@ -15,7 +15,7 @@ import util
 from data.preproc_for_efficiency import make_efficient_example
 
 
-@util.cache_result_on_disk(f'{paths.CACHE_DIR}/h36mTmp.pkl', min_time="2020-11-02T21:30:43")
+@util.cache_result_on_disk(f'{paths.CACHE_DIR}/h36m.pkl', min_time="2020-11-02T21:30:43")
 def make_h36m(
         train_subjects=(1, 5, 6, 7, 8), valid_subjects=(), test_subjects=(9, 11),
         correct_S9=True, partial_visibility=False):
@@ -71,8 +71,6 @@ def make_h36m(
                 ex = ps3d.Pose3DExample(
                     image_relpath, world_coords, bbox, camera, activity_name=activity_name)
                 new_image_relpath = image_relpath.replace('h36m', f'h36m_downscaled{dir_suffix}')
-                print(image_relpath, world_coords, bbox, camera.t, camera.R, new_image_relpath)
-                error
                 pool.apply_async(
                     make_efficient_example, (ex, new_image_relpath, further_expansion_factor),
                     callback=examples_container.append)
@@ -127,7 +125,6 @@ def get_examples(i_subject, activity_name, i_camera, frame_step=5, correct_S9=Tr
         coords_raw = coords_raw_all[::frame_step]
         i_relevant_joints = [1, 2, 3, 6, 7, 8, 12, 13, 14, 15, 17, 18, 19, 25, 26, 27, 0]
         coords_new_shape = [coords_raw.shape[0], -1, 3]
-        print("org coord", coords_raw.shape, coords_new_shape)
         return coords_raw_all.shape[0], coords_raw.reshape(coords_new_shape)[:, i_relevant_joints]
 
     pose_folder = f'{h36m_root}/S{i_subject}/MyPoseFeatures'
@@ -145,10 +142,6 @@ def get_examples(i_subject, activity_name, i_camera, frame_step=5, correct_S9=Tr
     bboxes = np.load(bbox_path)[::frame_step]
     if correct_S9:
         bboxes = correct_boxes(bboxes, bbox_path, world_coords, camera)
-    print(f'#fr:{n_total_frames} {image_relpaths}')
-    print("WorldCoord", world_coords.shape, world_coords[0])
-    print("Bboxes", bboxes.shape, bboxes[0])
-    print("Camera", camera.R, camera.t, camera.intrinsic_matrix)
 
     return image_relpaths, world_coords, bboxes, camera
 
