@@ -35,7 +35,7 @@ def vis(imagepath, projected_2d, bbox, keypoint_2d=None):
 
 
 
-@util.cache_result_on_disk(f'{paths.CACHE_DIR}/sway_ready.pkl', min_time="2023-06-27T11:30:43")
+@util.cache_result_on_disk(f'{paths.CACHE_DIR}/sway_eval.pkl', min_time="2023-06-27T11:30:43")
 def make_sway():
     root_sway = f'{paths.DATA_ROOT}/sway'
 
@@ -69,7 +69,7 @@ def make_sway():
         result = []
         with open(f'{root_sway}/{phase}.txt', "r") as f:
             seq_names = [line.strip() for line in f.readlines()]
-        for seq_name in util.progressbar(seq_names):
+        for seq_name in util.progressbar(seq_names[:3000]):
             seq_path = os.path.join(root_sway, 'sway61769', seq_name)
             intrinsics = np.load(os.path.join(seq_path, "intrinsics.npy"))
             extrinsics = np.load(os.path.join(seq_path, "extrinsics.npy"))
@@ -97,7 +97,7 @@ def make_sway():
                 # print("before", world_coords.shape, world_coords)
                 world_coords = world_coords[i_relevant_joints, :]
                 # print("after", world_coords.shape, world_coords)                
-                if (prev_coords is not None and
+                if (phase == 'train' and prev_coords is not None and
                         np.all(np.linalg.norm(world_coords - prev_coords, axis=1) < 100)):
                     continue
                 prev_coords = world_coords
