@@ -263,21 +263,28 @@ def plot_wild(input_dir, data_path=data_root, frame_step=1, frame_rate=15):
         data_path += 'inaki/'
     if "kapadia" in input_dir:
         data_path += 'kapadia/'
+    if "sway" in input_dir:
+        frame_step = 5
 
-    total_frames = len(glob.glob(os.path.join(data_path, input_dir, 'frame*.jpg')))
+    frames = sorted(glob.glob(os.path.join(data_path, input_dir, '*.jpg')))
+    frames = [f.split('/')[-1] for f in frames]
+    total_frames = len(frames)
+    if total_frames == 0:
+        print(f'No frames in the folder {os.path.join(data_path, input_dir)}')
     output_path = (exp_root + "visualize/" + outname)
     prep_dir(output_path)
     prep_dir(output_path+'/'+input_dir)
     im_arr = []
     camR = np.array([[[1., 0, 0], [0, 0, 1.], [0, -1., 0]]])
-    for i_frame in tqdm(range(0, total_frames, frame_step)):
-        save_path = output_path + '/' + input_dir + f'/frame_{i_frame}.jpg'
-        input_file = os.path.join(data_path, input_dir, f'frame{i_frame}.jpg')
-        # print(input_file)
+    for frame in tqdm(frames[::frame_step]):
+        save_path = output_path + '/' + input_dir + '/' + frame
+        #print(save_path, input_dir, frame)
+        input_file = os.path.join(data_path, input_dir, frame)
         img = Image.open(input_file)
         if use_detector:
             bbox = model_d.detector.predict_single_image(img)
-
+            if len(bbox)==0:
+                continue
             x, y, wd, ht, conf = bbox[0]
             if wd < ht:
                 y_sq, ht_sq = y, ht
