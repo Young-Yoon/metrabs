@@ -26,15 +26,11 @@ def main():
     FLAGS.pred_path = util.ensure_absolute_path(FLAGS.pred_path, f'{paths.DATA_ROOT}/experiments')
 
     all_image_relpaths, all_true3d = get_all_gt_poses()
-    #gt = [(i,x.split('/')[2], all_true3d[i]) for i, x in enumerate(all_image_relpaths) if '00001.jpg' in x]
-    #metrics = evaluate(FLAGS.pred_path, all_true3d, gt)
     metrics = evaluate(FLAGS.pred_path, all_true3d)
     print(to_latex(metrics))
 
 
-#def evaluate(pred_path, all_true3d,gt):
 def evaluate(pred_path, all_true3d):
-    #all_pred3d = get_all_pred_poses(pred_path,gt)
     all_pred3d = get_all_pred_poses(pred_path)
     if len(all_pred3d) != len(all_true3d):
         raise Exception(f'Unequal sample count! Pred: {len(all_pred3d)}, GT: {len(all_true3d)}')
@@ -93,14 +89,9 @@ def get_all_gt_poses():
     return all_image_relpaths, all_world_coords
 
 
-#def get_all_pred_poses(path,gt):
 def get_all_pred_poses(path):
     results = np.load(path, allow_pickle=True)
     order = np.argsort(results['image_path'])
-    #pred3d = results['coords3d_pred_world'][order]
-    #pred = [(i,x.decode("utf-8").split('/')[2], pred3d[i]) for i, x in enumerate(results['image_path'][order]) if '00001.jpg' in x.decode("utf-8")]
-    #for i in range(100):
-    #    print(gt[i], pred[i])
     return results['coords3d_pred_world'][order]
 
 

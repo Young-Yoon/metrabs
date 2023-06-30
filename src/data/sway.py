@@ -35,8 +35,7 @@ def vis(imagepath, projected_2d, bbox, keypoint_2d=None):
 
 
 
-@util.cache_result_on_disk(f'{paths.CACHE_DIR}/sway_last.pkl', min_time="2023-06-27T11:30:43")
-# @util.cache_result_on_disk(f'{paths.CACHE_DIR}/sway_last_tmptmp.pkl', min_time="2023-06-27T11:30:43")
+@util.cache_result_on_disk(f'{paths.CACHE_DIR}/sway.pkl', min_time="2023-06-27T11:30:43")
 def make_sway():
     root_sway = f'{paths.DATA_ROOT}/sway'
 
@@ -53,14 +52,7 @@ def make_sway():
     edges = (
         'htop-head-neck-lsho-lelb-lwri,neck-rsho-relb-rwri,'
         'neck-tors-pelv-lhip-lkne-lank,pelv-rhip-rkne-rank')
-
-#     edges = (
-#         'htop-head-neck-lsho-lelb-lwri,neck-rsho-relb-rwri,'
-#         'neck-tors-pelv-lhip-lkne-lank,pelv-rhip-rkne-rank')
-
-
-#     edges = (
-#         'lwri-lelb-luar-ruar-relb-rwri,head-hips')  # ',head-(neck)-hips'
+    
     joint_info = ps3d.JointInfo(joint_names, edges)
     i_relevant_joints = [2, 5, 8, 1, 4, 7, 9, 12, 15, 15, 16, 18, 20, 17, 19, 21, 0]
 
@@ -78,25 +70,17 @@ def make_sway():
             camera = cameralib.Camera(
                 extrinsic_matrix=extrinsics, intrinsic_matrix=intrinsics,
                 world_up=(0, 1, 0))
-            #print(f"Camera R {camera.R}\n t {camera.t}\n intrinsic {camera.intrinsic_matrix}")
-            #camera.t *= 1000
 
-            #keypoints = json.load(open(os.path.join(seq_path, "keypts2d.json"), 'r'))['key_points']
             world_pose3d = np.load(os.path.join(seq_path, "wspace_poses3d.npy"))
-            if np.isnan(world_pose3d).any():
-                continue
-            #cam_pose3d = np.load(os.path.join(seq_path, "cspace-poses3d.npy"))
             bbox = np.load(os.path.join(seq_path, "bbox.npy"))
-            if np.isnan(bbox).any():
+            if np.isnan(world_pose3d).any() or np.isnan(bbox).any():
                 continue
             n_frames = world_pose3d.shape[0]
             prev_coords = None
             
             for i_frame in range(0, n_frames, frame_step):
                 world_coords = world_pose3d[i_frame]
-                # print("before", world_coords.shape, world_coords)
                 world_coords = world_coords[i_relevant_joints, :]
-                # print("after", world_coords.shape, world_coords)                
                 if (phase == 'train' and prev_coords is not None and
                         np.all(np.linalg.norm(world_coords - prev_coords, axis=1) < 100)):
                     continue
@@ -105,9 +89,7 @@ def make_sway():
                 impath = f'sway/sway61769/{seq_name}/images/{i_frame+1:05d}.jpg'
                 ex = ps3d.Pose3DExample(impath, world_coords, bbox=bbox[i_frame], camera=camera)
 
-#                 print(f'key {proj2d}\nBBox{bbox[i_frame]}')
 #                 vis(os.path.join(paths.DATA_ROOT, impath), proj2d, bbox[i_frame])
-#                 exit()
 #                 new_image_relpath = impath.replace('sway/sway61769', 'sway_downscaled')
 #                 pool.apply_async(
 #                     make_efficient_example,

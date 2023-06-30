@@ -78,14 +78,10 @@ class MetroTrainer(models.model_trainer.ModelTrainer):
 
     def forward_train(self, inps, training):
         
-#        print(" Check joint information in forward train")
         preds = AttrDict()
 
         image_both = tf.concat([inps.image, inps.image_2d], axis=0)
         coords3d_pred_both = self.model(image_both, training=training)
-        
-#         print(" input shape :", image_both.shape)        
-#         print(" prediction size :", coords3d_pred_both.shape)
 
         batch_sizes = [t.shape.as_list()[0] for t in [inps.image, inps.image_2d]]
         preds.coords3d_rel_pred, preds.coords3d_pred_2d = tf.split(
@@ -95,24 +91,10 @@ class MetroTrainer(models.model_trainer.ModelTrainer):
             [self.joint_info.ids[n2] for n2 in self.joint_info.names if n2.startswith(n1)]
             for n1 in self.joint_info_2d.names]
         
-#         print("3d joint info ")
-#         print(self.joint_info.names)
-#         print(self.joint_info.ids)
-#         print("2d joint info ")
-#         print(self.joint_info_2d.names)
-#         print(self.joint_info_2d.ids)
-
-        
-#         print("3d joint ids ")
-#         print(joint_ids_3d)
-#         print("matching joint ids 3d")
         if FLAGS.output_upper_joints:
             joint_ids_3d= [[6], [5], [4], [1], [2], [3]]
-#        print(joint_ids_3d)
-#         print("check prediction ")
-#         print(preds.coords3d_pred_2d[..., :2])
+
         def get_2dlike_joints(coords):
-#            print(coords)
             return tf.stack(
                 [tf.reduce_mean(tf.gather(coords, ids, axis=1)[..., :2], axis=1)
                  for ids in joint_ids_3d], axis=1)
