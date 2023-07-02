@@ -38,7 +38,7 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
         ex.world_coords -= ex.camera.t
         ex.camera.t[:] = 0
 
-    box = ex.bbox    
+    box = ex.bbox
     
     if FLAGS.upper_bbox:
         y_height = box[3]    
@@ -155,6 +155,20 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
     # Occlusion and color augmentation
     im = augmentation.appearance.augment_appearance(
         im, learning_phase, FLAGS.occlude_aug_prob, appearance_rng)
+
+    ### Add zero padding on left or right
+    if FLAGS.zero_padding > 0:
+        crop_h, crop_w, _ = im.shape
+        pad_ratio = np.random.uniform(0, FLAGS.zero_padding)
+        if np.random.uniform() > 0.5: # left-right padding
+            side = int(crop_w * pad_ratio / 2)
+            im[:, :side] = 0
+            im[:, -side:] = 0
+        else:
+            side = int(crop_h * pad_ratio / 2)
+            im[:side, :] = 0
+            im[-side:, :] = 0
+
     im = tfu.nhwc_to_std(im)
     im = improc.normalize01(im)
 

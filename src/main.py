@@ -295,8 +295,6 @@ def predict():
     except AttributeError:
         coords3d_pred = r.coords3d_rel_pred
     
-    print(coords3d_pred.shape)
-
     coords3d_pred_world = tf.einsum(
         'nCc, njc->njC', r.rot_to_world, coords3d_pred) + tf.expand_dims(r.cam_loc, 1)
     print(coords3d_pred.shape)
