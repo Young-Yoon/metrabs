@@ -23,6 +23,14 @@ def load_coords(path):
     return coords_raw.reshape(coords_new_shape)[:, i_relevant_joints]
 
 
+def load_coords_sway(path):
+    i_relevant_joints = [2, 5, 8, 1, 4, 7, 9, 12, 15, 15, 16, 18, 20, 17, 19, 21, 0]
+    world_pose3d = np.load(path)
+    world_coords = world_pose3d[:, i_relevant_joints]
+    world_coords -= world_coords[:, -1, np.newaxis]
+    return world_coords
+
+
 def plot_skeleton(axis, p, color='r'):
     axis.scatter(p[:, 0], p[:, 1], p[:, 2], s=1, c=color)
 
@@ -258,14 +266,19 @@ def plot_h36m(act_key=None, frame_step=5, data_path=data_root+'metrabs-processed
                 number_activity =  number_activity+1
 
 
-def plot_wild(input_dir, data_path=data_root, frame_step=1, frame_rate=15):
+def plot_wild(input_dir, data_path=data_root, frame_step=2, frame_rate=15):
+    gt_path = ''
     if "inaki" in input_dir:
         data_path += 'inaki/'
     if "kapadia" in input_dir:
         data_path += 'kapadia/'
+        frame_step = 5
     if "sway" in input_dir:
         frame_step = 5
-
+        gt_path = os.path.join(data_path, input_dir, "wspace_poses3d.npy")
+        world_coords = load_coords_sway(gt_path)[::frame_step]
+        input_dir += '/images'
+        
     frames = sorted(glob.glob(os.path.join(data_path, input_dir, '*.jpg')))
     frames = [f.split('/')[-1] for f in frames]
     total_frames = len(frames)
@@ -276,7 +289,7 @@ def plot_wild(input_dir, data_path=data_root, frame_step=1, frame_rate=15):
     prep_dir(output_path+'/'+input_dir)
     im_arr = []
     camR = np.array([[[1., 0, 0], [0, 0, 1.], [0, -1., 0]]])
-    for frame in tqdm(frames[::frame_step]):
+    for i_fr, frame in enumerate(tqdm(frames[::frame_step])):
         save_path = output_path + '/' + input_dir + '/' + frame
         #print(save_path, input_dir, frame)
         input_file = os.path.join(data_path, input_dir, frame)
@@ -310,6 +323,10 @@ def plot_wild(input_dir, data_path=data_root, frame_step=1, frame_rate=15):
             for i_v in range(len(views)):
                 ax = fig.add_subplot(len(views), nmdl + 1, (nmdl + 1) * i_v + i_m + 2, projection='3d')
                 ax.view_init(*views[i_v])
+
+                if bool(gt_path):
+                    gt = world_coords[i_fr]
+                    plot_skeleton(ax, gt, 'b')
                 plot_fn(ax, tt_sq, 'r')
 
                 # ax.set_xlabel('x')
@@ -317,7 +334,8 @@ def plot_wild(input_dir, data_path=data_root, frame_step=1, frame_rate=15):
                 ax.set_zlim3d(-700, 700)
                 ax.set_ylim3d(-700, 700)
                 if i_v == 0:
-                    ax.set_title(f"{model_name[i_m][-3].split('_')[2]}_in{input_size[i_m]}")
+                    ax.set_title(f"{model_folders[i_m]}")
+                    ax.title.set_size(180/len(model_folders[i_m]))
 
         ax2 = fig.add_subplot(len(views), nmdl + 1, 1)
         ax2.imshow(img)
@@ -326,6 +344,7 @@ def plot_wild(input_dir, data_path=data_root, frame_step=1, frame_rate=15):
         ax2.add_patch(rect_sq)
         ax2.add_patch(rect)
         ax2.set_title(input_path)
+        ax2.title.set_size(130/len(input_path))
 
         ax3 = fig.add_subplot(len(views), nmdl + 1, nmdl + 2)
         ax3.imshow(res_sq)
@@ -339,7 +358,7 @@ def plot_wild(input_dir, data_path=data_root, frame_step=1, frame_rate=15):
         h, w, c = img.shape
         im_arr.append(img)
 
-    out = cv2.VideoWriter(output_path + f'/{input_dir}.mp4',
+    out = cv2.VideoWriter(output_path + f'/{input_dir.replace("/","_")}.mp4',
                           cv2.VideoWriter_fourcc(*'mp4v'), frame_rate/frame_step, (w, h))
     for fr in im_arr:
         out.write(fr)
@@ -357,4 +376,3 @@ elif input_path.startswith('h36m'):
     plot_h36m(input_path[4:])
 else:
     plot_wild(input_path)
-
