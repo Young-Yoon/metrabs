@@ -266,7 +266,7 @@ def plot_h36m(act_key=None, frame_step=5, data_path=data_root+'metrabs-processed
                 number_activity =  number_activity+1
 
 
-def plot_wild(input_dir, data_path=data_root, frame_step=2, frame_rate=15):
+def plot_wild(input_dir, data_path=data_root, frame_step=2, frame_rate=24):
     gt_path = ''
     if "inaki" in input_dir:
         data_path += 'inaki/'
