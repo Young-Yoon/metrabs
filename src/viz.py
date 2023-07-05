@@ -138,7 +138,7 @@ views = [(deg, deg - 90), (deg, deg), (90 - deg, deg - 90)]
 fsz = 2
 use_detector=True
 
-def plot_h36m(act_key=None, frame_step=5, data_path=data_root+'metrabs-processed/h36m/'):
+def plot_h36m(act_key=None, frame_step=25, data_path=data_root+'metrabs-processed/h36m/'):
     cam_param = exp_root + "visualize/human36m-camera-parameters/camera-parameters.json"
     with open(cam_param, 'r') as j:
          cam = json.loads(j.read())
@@ -151,7 +151,7 @@ def plot_h36m(act_key=None, frame_step=5, data_path=data_root+'metrabs-processed
         number_activity=0
         for activity, cam_id in itertools.product(data.h36m.get_activity_names(i_subj), range(4)):
                 
-                if number_activity==10:
+                if number_activity==4:
                     break
                 if cam_id > 0:
                     continue
@@ -381,10 +381,9 @@ if input_path in {'all', 'wild'}:
     plot_wild('sway4d004')
     for test_set in ['inaki', 'kapadia']:
         for subdir in sorted(os.listdir(os.path.join(data_root, test_set))):
-            if not os.path.isfile(os.path.join(data_root, test_set, subdir)):
-                print(subdir)
+            if subdir.startswith(test_set) and not os.path.isfile(os.path.join(data_root, test_set, subdir)):
+                print("Processing ", data_root, test_set, subdir)
                 plot_wild(subdir)
-#                 exit()
     if input_path in {'all'}:
         plot_h36m()
 elif input_path.startswith('h36m'):
