@@ -40,12 +40,12 @@ def evaluate(pred_path, all_true3d):
     all_true3d -= all_true3d[:, i_root, np.newaxis]
 
     if all_pred3d.shape[1] == 8:
-        dist = np.linalg.norm(all_true3d[:, 9:, :] - all_pred3d, axis=-1)
-        return np.mean(dist)
+        dist = np.linalg.norm(all_true3d[:, 9:] - all_pred3d, axis=-1)
+        return [np.mean(dist)]
     else:
         dist = np.linalg.norm(all_true3d - all_pred3d, axis=-1)
-        mean_dist_upper = np.mean(np.linalg.norm(all_true3d[:, 9:, :] - all_pred3d[:, 9:, :], axis=-1))
-        mean_dist_lower = np.mean(np.linalg.norm(all_true3d[:, :9, :] - all_pred3d[:, :9, :], axis=-1))
+        mean_dist_upper = np.mean(np.linalg.norm(all_true3d[:, 9:] - all_pred3d[:, 9:], axis=-1))
+        mean_dist_lower = np.mean(np.linalg.norm(all_true3d[:, :9] - all_pred3d[:, :9], axis=-1))
         return [np.mean(dist), mean_dist_upper, mean_dist_lower]
 
 
