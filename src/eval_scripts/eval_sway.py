@@ -38,7 +38,9 @@ def evaluate(pred_path, all_true3d):
     i_root = -1 if FLAGS.root_last else 0
     all_pred3d -= all_pred3d[:, i_root, np.newaxis]
     all_true3d -= all_true3d[:, i_root, np.newaxis]
-
+    
+    if FLAGS.procrustes:
+        all_pred3d = tfu3d.rigid_align(all_pred3d, all_true3d, scale_align=True)
     if all_pred3d.shape[1] == 8:
         dist = np.linalg.norm(all_true3d[:, 9:] - all_pred3d, axis=-1)
         return [np.mean(dist)]
