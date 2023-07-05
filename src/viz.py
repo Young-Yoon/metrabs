@@ -57,6 +57,17 @@ def upper_plot_skeleton(axis, p, color='r'):
     plt.plot([center_shoulder[0], p[7, 0]], [center_shoulder[1], p[7, 1]], [center_shoulder[2], p[7, 2]], color)           
         
 
+def adjust_bbox(x0, y0, w0, h0, upbb=False): 
+    if upbb:
+        h0 *= 0.5
+    if w0 < h0:
+        w1, h1 = h0, h0
+        x1, y1 = x0 - (h0 - w0) / 2., y0
+    else:
+        w1, h1 = w0, w0  
+        x1, y1 = x0, y0 - (w0 - h0) / 2.
+    return x1, y1, w1, h1
+
 
 def get_crop(img0, x0, y0, w0, h0):
     if x0 < 0: x0 = 0
@@ -198,14 +209,7 @@ def plot_h36m(act_key=None, frame_step=5, data_path=data_root+'metrabs-processed
                         x, y, wd, ht = 0, 0, img.width, img.height
                     else:
                         x, y, wd, ht, conf = bbox[0]
-                    if upbbox == True:
-                        ht *= 0.5
-                    if wd < ht:
-                        y_sq, ht_sq = y, ht
-                        x_sq, wd_sq = x-(ht-wd)/2., ht
-                    else:
-                        x_sq, wd_sq = x, wd
-                        y_sq, ht_sq = y-(wd-ht)/2., wd
+                    x_sq, y_sq, wd_sq, ht_sq = adjust_bbox(x, y, wd, ht, upbbox)
                     x_gt, y_gt, wd_gt, ht_gt = bboxes_gt[i_frame]
 
                     crop = get_crop(img, x, y, wd, ht)
@@ -309,15 +313,7 @@ def plot_wild(input_dir, data_path=data_root, frame_step=2, frame_rate=24):
             if len(bbox)==0:
                 continue
             x, y, wd, ht, conf = bbox[0]
-            if upbbox == True:
-                ht *= 0.5
-            if wd < ht:
-                y_sq, ht_sq = y, ht
-                x_sq, wd_sq = x - (ht - wd) / 2., ht
-            else:
-                x_sq, wd_sq = x, wd
-                y_sq, ht_sq = y - (wd - ht) / 2., wd
-
+            x_sq, y_sq, wd_sq, ht_sq = adjust_bbox(x, y, wd, ht, upbbox)
             crop_sq = get_crop(img, x_sq, y_sq, wd_sq, ht_sq)
         else:
             crop_sq = np.array(img)
