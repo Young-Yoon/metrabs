@@ -86,6 +86,12 @@ def prep_dir(target_path):
 # usage: python viz.py model_path1 .. model_pathN ('h36m' or input_path) outname
 #     or python viz.py model_path
 args = sys.argv[1:]
+if len(args) > 1 and args[0] == 'up':
+    upbbox = True
+    args = args[1:]
+else:
+    upbbox = False
+
 if len(args) == 1:
     model_folders = args
     outname = args[0].replace('/', '_')
@@ -136,6 +142,8 @@ def plot_h36m(act_key=None, frame_step=5, data_path=data_root+'metrabs-processed
                 
                 if number_activity==10:
                     break
+                if cam_id > 0:
+                    continue
                 
                 print(activity, cam_id, number_activity)
                 im_arr = []
@@ -190,6 +198,8 @@ def plot_h36m(act_key=None, frame_step=5, data_path=data_root+'metrabs-processed
                         x, y, wd, ht = 0, 0, img.width, img.height
                     else:
                         x, y, wd, ht, conf = bbox[0]
+                    if upbbox == True:
+                        ht *= 0.5
                     if wd < ht:
                         y_sq, ht_sq = y, ht
                         x_sq, wd_sq = x-(ht-wd)/2., ht
@@ -299,6 +309,8 @@ def plot_wild(input_dir, data_path=data_root, frame_step=2, frame_rate=24):
             if len(bbox)==0:
                 continue
             x, y, wd, ht, conf = bbox[0]
+            if upbbox == True:
+                ht *= 0.5
             if wd < ht:
                 y_sq, ht_sq = y, ht
                 x_sq, wd_sq = x - (ht - wd) / 2., ht
@@ -334,8 +346,13 @@ def plot_wild(input_dir, data_path=data_root, frame_step=2, frame_rate=24):
                 ax.set_zlim3d(-700, 700)
                 ax.set_ylim3d(-700, 700)
                 if i_v == 0:
-                    ax.set_title(f"{model_folders[i_m]}")
-                    ax.title.set_size(180/len(model_folders[i_m]))
+                    mdl_name = model_folders[i_m]
+                    if len(mdl_name)>30:
+                        mdl_name = mdl_name.split('/')[-1]
+                        if len(mdl_name) > 30:
+                            mdl_name = mdl_name[:30]
+                    ax.set_title(f"{mdl_name}")
+                    ax.title.set_size(180/len(mdl_name))
 
         ax2 = fig.add_subplot(len(views), nmdl + 1, 1)
         ax2.imshow(img)
@@ -343,8 +360,8 @@ def plot_wild(input_dir, data_path=data_root, frame_step=2, frame_rate=24):
         rect_sq = patches.Rectangle((x_sq, y_sq), wd_sq, ht_sq, linewidth=1, edgecolor='b', facecolor='none')
         ax2.add_patch(rect_sq)
         ax2.add_patch(rect)
-        ax2.set_title(input_path)
-        ax2.title.set_size(130/len(input_path))
+        ax2.set_title(input_dir)
+        ax2.title.set_size(np.min([130/len(input_dir), 10]))
 
         ax3 = fig.add_subplot(len(views), nmdl + 1, nmdl + 2)
         ax3.imshow(res_sq)
@@ -364,14 +381,16 @@ def plot_wild(input_dir, data_path=data_root, frame_step=2, frame_rate=24):
         out.write(fr)
     out.release()
 
-if input_path == 'all':
+if input_path in {'all', 'wild'}:
+    plot_wild('sway4d004')
     for test_set in ['inaki', 'kapadia']:
         for subdir in sorted(os.listdir(os.path.join(data_root, test_set))):
             if not os.path.isfile(os.path.join(data_root, test_set, subdir)):
                 print(subdir)
                 plot_wild(subdir)
 #                 exit()
-    plot_h36m()
+    if input_path in {'all'}:
+        plot_h36m()
 elif input_path.startswith('h36m'):
     plot_h36m(input_path[4:])
 else:
