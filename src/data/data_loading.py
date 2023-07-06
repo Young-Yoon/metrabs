@@ -43,7 +43,10 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
     if FLAGS.upper_bbox:
         y_height = box[3]    
         bbox_ratio =  FLAGS.upper_bbox_ratio
-        top_ratio = top_bbox_rng.uniform(bbox_ratio[0], bbox_ratio[1])
+        if bbox_ratio[0] >= bbox_ratio[1]:
+            top_ratio = bbox_ratio[0]
+        else:
+            top_ratio = top_bbox_rng.uniform(bbox_ratio[0], bbox_ratio[1])
         go_up= y_height*top_ratio
         box[3] = go_up
     
