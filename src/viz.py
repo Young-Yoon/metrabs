@@ -65,7 +65,7 @@ def adjust_bbox(x0, y0, w0, h0, upbb=False):
         x1, y1 = x0 - (h0 - w0) / 2., y0
     else:
         w1, h1 = w0, w0  
-        x1, y1 = x0, y0 - (w0 - h0) / 2.
+        x1, y1 = x0, y0 #- (w0 - h0) / 2.
     return x1, y1, w1, h1
 
 
