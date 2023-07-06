@@ -15,11 +15,13 @@ import options
 import paths
 import util
 from options import FLAGS
+import tfu3d
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--pred-path', type=str, default=None)
+    parser.add_argument('--procrustes', action=options.BoolAction)
     parser.add_argument('--seeds', type=int, default=1)
     parser.add_argument('--root-last', action=options.BoolAction)
     options.initialize(parser)
@@ -39,15 +41,18 @@ def evaluate(pred_path, all_true3d):
     all_pred3d -= all_pred3d[:, i_root, np.newaxis]
     all_true3d -= all_true3d[:, i_root, np.newaxis]
     
+    n_joints_up = 8
+    n_joints_pred = all_pred3d.shape[1]
     if FLAGS.procrustes:
-        all_pred3d = tfu3d.rigid_align(all_pred3d, all_true3d, scale_align=True)
-    if all_pred3d.shape[1] == 8:
-        dist = np.linalg.norm(all_true3d[:, 9:] - all_pred3d, axis=-1)
+        print(all_pred3d.dtype, all_true3d.dtype)
+        all_pred3d = tfu3d.rigid_align(all_pred3d, all_true3d[:, -n_joints_pred:], scale_align=True)
+    if n_joints_pred == n_joints_up:
+        dist = np.linalg.norm(all_true3d[:, -n_joints_pred:] - all_pred3d, axis=-1)
         return [np.mean(dist)]
     else:
         dist = np.linalg.norm(all_true3d - all_pred3d, axis=-1)
-        mean_dist_upper = np.mean(np.linalg.norm(all_true3d[:, 9:] - all_pred3d[:, 9:], axis=-1))
-        mean_dist_lower = np.mean(np.linalg.norm(all_true3d[:, :9] - all_pred3d[:, :9], axis=-1))
+        mean_dist_upper = np.mean(np.linalg.norm(all_true3d[:, -n_joints_up:] - all_pred3d[:, -n_joints_up:], axis=-1))
+        mean_dist_lower = np.mean(np.linalg.norm(all_true3d[:, :-n_joints_up] - all_pred3d[:, :-n_joints_up], axis=-1))
         return [np.mean(dist), mean_dist_upper, mean_dist_lower]
 
 
@@ -78,7 +83,7 @@ def get_all_gt_poses():
 
         n_frames_total = len(world_pose3d)
         world_coords = world_pose3d[::frame_step]
-        world_coords = world_coords[:, i_relevant_joints, :]
+        world_coords = world_coords[:, i_relevant_joints, :].astype(np.single)
         all_world_coords.append(world_coords)
         image_relfolder = f'sway/sway61769/{seq_name}/images'
         all_image_relpaths += [

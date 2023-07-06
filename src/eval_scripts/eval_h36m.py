@@ -15,6 +15,7 @@ import options
 import paths
 import util
 from options import FLAGS
+import tfu3d
 
 
 def main():
@@ -62,15 +63,18 @@ def evaluate(pred_path, all_true3d, activities):
     ordered_activities = (
             'Directions Discussion Eating Greeting Phoning Posing Purchases ' +
             'Sitting SittingDown Smoking Photo Waiting Walking WalkDog WalkTogether').split()
+    n_joints_up = 8
+    n_joints_pred = all_pred3d.shape[1]
     if FLAGS.procrustes:
-        all_pred3d = tfu3d.rigid_align(all_pred3d, all_true3d, scale_align=True)
-    if all_pred3d.shape[1] == 8:
-        dist = np.linalg.norm(all_true3d[:,9:,:] - all_pred3d, axis=-1)
+        print(all_pred3d.dtype, all_true3d.dtype)
+        all_pred3d = tfu3d.rigid_align(all_pred3d, all_true3d[:, -n_joints_pred:], scale_align=True)
+    if n_joints_pred == n_joints_up:
+        dist = np.linalg.norm(all_true3d[:, -n_joints_pred:] - all_pred3d, axis=-1)
         mean_dist_lower = None
     else:
         dist = np.linalg.norm(all_true3d - all_pred3d, axis=-1)
-        mean_dist_upper = np.mean(np.linalg.norm(all_true3d[:,9:,:] - all_pred3d[:,9:,:], axis=-1))
-        mean_dist_lower = np.mean(np.linalg.norm(all_true3d[:,:9,:] - all_pred3d[:,:9,:], axis=-1))
+        mean_dist_upper = np.mean(np.linalg.norm(all_true3d[:, -n_joints_up:] - all_pred3d[:, -n_joints_up:], axis=-1))
+        mean_dist_lower = np.mean(np.linalg.norm(all_true3d[:, :-n_joints_up] - all_pred3d[:, :-n_joints_up], axis=-1))
     overall_mean_error = np.mean(dist)
     metrics = [np.mean(dist[activities == activity]) for activity in ordered_activities]
     metrics.append(overall_mean_error)
