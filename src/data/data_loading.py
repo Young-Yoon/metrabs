@@ -14,6 +14,8 @@ import cameralib
 import improc
 import tfu
 import util
+import cv2
+import cv2r
 from options import FLAGS
 from tfu import TRAIN
 
@@ -29,6 +31,15 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
     output_side = FLAGS.proc_side
     output_imshape = (output_side, output_side)
 
+    # Load and reproject image
+    image_path = util.ensure_absolute_path(ex.image_path)
+    origsize_im = improc.imread_jpeg(image_path)
+    h, w, _ = origsize_im.shape
+
+    if 'surreal' in ex.image_path.lower():
+        # Surreal images are flipped wrong in the official dataset release
+        origsize_im = origsize_im[:, ::-1]
+        
     if 'sailvos' in ex.image_path.lower():
         # This is needed in order not to lose precision in later operations.
         # Background: In the Sailvos dataset (GTA V), some world coordinates
@@ -39,13 +50,24 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
         ex.camera.t[:] = 0
 
     box = ex.bbox
-    if FLAGS.upper_bbox:
-        y_height = box[3]    
-        bbox_ratio =  FLAGS.upper_bbox_ratio
-        top_ratio = top_bbox_rng.uniform(bbox_ratio[0], bbox_ratio[1])
-        go_up= y_height*top_ratio
-        box[3] = go_up
     
+    if FLAGS.upper_bbox:
+        full_imgcoords = ex.camera.world_to_image(ex.world_coords)
+        upper_imgcoords = full_imgcoords[9:]
+        min_x, min_y = 999999, 999999
+        max_x, max_y = -999999, -999999
+        for coord in upper_imgcoords:
+            xx, yy = coord
+            min_x = min(min_x, xx)
+            min_y = min(min_y, yy)
+            max_x = max(max_x, xx)
+            max_y = max(max_y, yy)
+        min_x = max(min_x - 20, 0)
+        min_y = max(min_y - 80, 0)
+        max_x = min(max_x + 20, box[0] + box[2])
+        max_y = min(max_y + 20, box[1] + box[3])
+        box = np.array([min_x, min_y, max_x - min_x, max_y - min_y])
+
     if 'surreal' in ex.image_path.lower():
         # Surreal images are flipped wrong in the official dataset release
         box = box.copy()
@@ -68,88 +90,179 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
     # Geometric transformation and augmentation
     crop_side = np.max(box[2:])
     center_point = boxlib.center(box)
+    
     if ((learning_phase == TRAIN and FLAGS.geom_aug) or
             (learning_phase != TRAIN and FLAGS.test_aug and FLAGS.geom_aug)):
         center_point += util.random_uniform_disc(geom_rng) * FLAGS.shift_aug / 100 * crop_side
+        
+    if FLAGS.upper_bbox:
+        side = int(max(box[2], box[3]))
+        side = min(h, w, side)
 
-    # The homographic reprojection of a rectangle (bounding box) will not be another rectangle
-    # Hence, instead we transform the side midpoints of the short sides of the box and
-    # determine an appropriate zoom factor by taking the projected distance of these two points
-    # and scaling that to the desired output image side length.
-    if box[2] < box[3]:
-        # Tall box: take midpoints of top and bottom sides
-        delta_y = np.array([0, box[3] / 2])
-        sidepoints = center_point + np.stack([-delta_y, delta_y])
+        min_x = int(center_point[0] - side / 2)
+        min_x = max(min_x, 0)
+        min_x = min(min_x, w - side)
+        
+        min_y = int(center_point[1] - side / 2)
+        min_y = max(min_y, 0)
+        min_y = min(min_y, h - side) 
+        
+        max_x = min_x + side
+        max_y = min_y + side
+        
+        im = origsize_im[min_y: max_y, min_x: max_x]
+        if im.shape[0] < 40 or im.shape[1] < 40:
+            box = ex.bbox
+            # The homographic reprojection of a rectangle (bounding box) will not be another rectangle
+            # Hence, instead we transform the side midpoints of the short sides of the box and
+            # determine an appropriate zoom factor by taking the projected distance of these two points
+            # and scaling that to the desired output image side length.
+            if box[2] < box[3]:
+                # Tall box: take midpoints of top and bottom sides
+                delta_y = np.array([0, box[3] / 2])
+                sidepoints = center_point + np.stack([-delta_y, delta_y])
+            else:
+                # Wide box: take midpoints of left and right sides
+                delta_x = np.array([box[2] / 2, 0])
+                sidepoints = center_point + np.stack([-delta_x, delta_x])
+
+            cam = ex.camera.copy()
+            # cam.turn_towards(target_image_point=center_point)
+            cam.undistort()
+            cam.square_pixels()
+            cam_sidepoints = cameralib.reproject_image_points(sidepoints, ex.camera, cam)
+            crop_side = np.linalg.norm(cam_sidepoints[0] - cam_sidepoints[1])
+            cam.zoom(output_side / crop_side)
+            cam.center_principal_point(output_imshape)
+
+            if FLAGS.geom_aug and (learning_phase == TRAIN or FLAGS.test_aug):
+                s1 = FLAGS.scale_aug_down / 100
+                s2 = FLAGS.scale_aug_up / 100
+                zoom = geom_rng.uniform(1 - s1, 1 + s2)
+                cam.zoom(zoom)
+                r = np.deg2rad(FLAGS.rot_aug)
+                cam.rotate(roll=geom_rng.uniform(-r, r))
+
+            world_coords = ex.univ_coords if FLAGS.universal_skeleton else ex.world_coords
+            metric_world_coords = ex.world_coords
+
+            if learning_phase == TRAIN and geom_rng.rand() < 0.5:
+                cam.horizontal_flip()
+                # Must reorder the joints due to left and right flip
+                camcoords = cam.world_to_camera(world_coords)[joint_info.mirror_mapping]
+                metric_world_coords = metric_world_coords[joint_info.mirror_mapping]
+            else:
+                camcoords = cam.world_to_camera(world_coords)
+            imcoords = cam.world_to_image(metric_world_coords)
+            interp_str = (FLAGS.image_interpolation_train
+                          if learning_phase == TRAIN else FLAGS.image_interpolation_test)
+            antialias = (FLAGS.antialias_train if learning_phase == TRAIN else FLAGS.antialias_test)
+            interp = getattr(cv2, 'INTER_' + interp_str.upper())
+            im = cameralib.reproject_image(
+                origsize_im, ex.camera, cam, output_imshape, antialias_factor=antialias, interp=interp)
+
+            # Color adjustment
+            if re.match('.*mupots/TS[1-5]/.+', ex.image_path):
+                im = improc.adjust_gamma(im, 0.67, inplace=True)
+            elif '3dhp' in ex.image_path and re.match('.+/(TS[1-4])/', ex.image_path):
+                im = improc.adjust_gamma(im, 0.67, inplace=True)
+                im = improc.white_balance(im, 110, 145)
+            elif 'panoptic' in ex.image_path.lower():
+                im = improc.white_balance(im, 120, 138)
+
+            # Background augmentation
+            if hasattr(ex, 'mask') and ex.mask is not None:
+                bg_aug_prob = 0.2 if 'sailvos' in ex.image_path.lower() else FLAGS.background_aug_prob
+                if (FLAGS.background_aug_prob and (learning_phase == TRAIN or FLAGS.test_aug) and
+                        background_rng.rand() < bg_aug_prob):
+                    fgmask = improc.decode_mask(ex.mask)
+                    if 'surreal' in ex.image_path:
+                        # Surreal images are flipped wrong in the official dataset release
+                        fgmask = fgmask[:, ::-1]
+                    fgmask = cameralib.reproject_image(
+                        fgmask, ex.camera, cam, output_imshape, antialias_factor=antialias, interp=interp)
+                    im = augmentation.background.augment_background(im, fgmask, background_rng)
+
+        else:
+            im = cv2r.resize(im, dsize=(output_imshape[1], output_imshape[0]), interpolation=cv2.INTER_AREA, dst=None)
+            resize_factor = side / output_side        
+            cam = ex.camera.copy()
+            cam.intrinsic_matrix[:2, 2] -= np.array([min_x, min_y])
+            cam.intrinsic_matrix[:2] /=  resize_factor
+            metric_world_coords = ex.world_coords
+            camcoords = cam.world_to_camera(metric_world_coords)
+            imcoords = cam.world_to_image(metric_world_coords)
     else:
-        # Wide box: take midpoints of left and right sides
-        delta_x = np.array([box[2] / 2, 0])
-        sidepoints = center_point + np.stack([-delta_x, delta_x])
 
-    cam = ex.camera.copy()
-    cam.turn_towards(target_image_point=center_point)
-    cam.undistort()
-    cam.square_pixels()
-    cam_sidepoints = cameralib.reproject_image_points(sidepoints, ex.camera, cam)
-    crop_side = np.linalg.norm(cam_sidepoints[0] - cam_sidepoints[1])
-    cam.zoom(output_side / crop_side)
-    cam.center_principal_point(output_imshape)
+        # The homographic reprojection of a rectangle (bounding box) will not be another rectangle
+        # Hence, instead we transform the side midpoints of the short sides of the box and
+        # determine an appropriate zoom factor by taking the projected distance of these two points
+        # and scaling that to the desired output image side length.
+        if box[2] < box[3]:
+            # Tall box: take midpoints of top and bottom sides
+            delta_y = np.array([0, box[3] / 2])
+            sidepoints = center_point + np.stack([-delta_y, delta_y])
+        else:
+            # Wide box: take midpoints of left and right sides
+            delta_x = np.array([box[2] / 2, 0])
+            sidepoints = center_point + np.stack([-delta_x, delta_x])
 
-    if FLAGS.geom_aug and (learning_phase == TRAIN or FLAGS.test_aug):
-        s1 = FLAGS.scale_aug_down / 100
-        s2 = FLAGS.scale_aug_up / 100
-        zoom = geom_rng.uniform(1 - s1, 1 + s2)
-        cam.zoom(zoom)
-        r = np.deg2rad(FLAGS.rot_aug)
-        cam.rotate(roll=geom_rng.uniform(-r, r))
+        cam = ex.camera.copy()
+        # cam.turn_towards(target_image_point=center_point)
+        cam.undistort()
+        cam.square_pixels()
+        cam_sidepoints = cameralib.reproject_image_points(sidepoints, ex.camera, cam)
+        crop_side = np.linalg.norm(cam_sidepoints[0] - cam_sidepoints[1])
+        cam.zoom(output_side / crop_side)
+        cam.center_principal_point(output_imshape)
 
-    world_coords = ex.univ_coords if FLAGS.universal_skeleton else ex.world_coords
-    metric_world_coords = ex.world_coords
+        if FLAGS.geom_aug and (learning_phase == TRAIN or FLAGS.test_aug):
+            s1 = FLAGS.scale_aug_down / 100
+            s2 = FLAGS.scale_aug_up / 100
+            zoom = geom_rng.uniform(1 - s1, 1 + s2)
+            cam.zoom(zoom)
+            r = np.deg2rad(FLAGS.rot_aug)
+            cam.rotate(roll=geom_rng.uniform(-r, r))
+    
+        world_coords = ex.univ_coords if FLAGS.universal_skeleton else ex.world_coords
+        metric_world_coords = ex.world_coords
 
-    if learning_phase == TRAIN and geom_rng.rand() < 0.5:
-        cam.horizontal_flip()
-        # Must reorder the joints due to left and right flip
-        camcoords = cam.world_to_camera(world_coords)[joint_info.mirror_mapping]
-        metric_world_coords = metric_world_coords[joint_info.mirror_mapping]
-    else:
-        camcoords = cam.world_to_camera(world_coords)
+        if learning_phase == TRAIN and geom_rng.rand() < 0.5:
+            cam.horizontal_flip()
+            # Must reorder the joints due to left and right flip
+            camcoords = cam.world_to_camera(world_coords)[joint_info.mirror_mapping]
+            metric_world_coords = metric_world_coords[joint_info.mirror_mapping]
+        else:
+            camcoords = cam.world_to_camera(world_coords)
+        imcoords = cam.world_to_image(metric_world_coords)
+        interp_str = (FLAGS.image_interpolation_train
+                      if learning_phase == TRAIN else FLAGS.image_interpolation_test)
+        antialias = (FLAGS.antialias_train if learning_phase == TRAIN else FLAGS.antialias_test)
+        interp = getattr(cv2, 'INTER_' + interp_str.upper())
+        im = cameralib.reproject_image(
+            origsize_im, ex.camera, cam, output_imshape, antialias_factor=antialias, interp=interp)
 
-    imcoords = cam.world_to_image(metric_world_coords)
+        # Color adjustment
+        if re.match('.*mupots/TS[1-5]/.+', ex.image_path):
+            im = improc.adjust_gamma(im, 0.67, inplace=True)
+        elif '3dhp' in ex.image_path and re.match('.+/(TS[1-4])/', ex.image_path):
+            im = improc.adjust_gamma(im, 0.67, inplace=True)
+            im = improc.white_balance(im, 110, 145)
+        elif 'panoptic' in ex.image_path.lower():
+            im = improc.white_balance(im, 120, 138)
 
-    # Load and reproject image
-    image_path = util.ensure_absolute_path(ex.image_path)
-    origsize_im = improc.imread_jpeg(image_path)
-    if 'surreal' in ex.image_path.lower():
-        # Surreal images are flipped wrong in the official dataset release
-        origsize_im = origsize_im[:, ::-1]
-
-    interp_str = (FLAGS.image_interpolation_train
-                  if learning_phase == TRAIN else FLAGS.image_interpolation_test)
-    antialias = (FLAGS.antialias_train if learning_phase == TRAIN else FLAGS.antialias_test)
-    interp = getattr(cv2, 'INTER_' + interp_str.upper())
-    im = cameralib.reproject_image(
-        origsize_im, ex.camera, cam, output_imshape, antialias_factor=antialias, interp=interp)
-
-    # Color adjustment
-    if re.match('.*mupots/TS[1-5]/.+', ex.image_path):
-        im = improc.adjust_gamma(im, 0.67, inplace=True)
-    elif '3dhp' in ex.image_path and re.match('.+/(TS[1-4])/', ex.image_path):
-        im = improc.adjust_gamma(im, 0.67, inplace=True)
-        im = improc.white_balance(im, 110, 145)
-    elif 'panoptic' in ex.image_path.lower():
-        im = improc.white_balance(im, 120, 138)
-
-    # Background augmentation
-    if hasattr(ex, 'mask') and ex.mask is not None:
-        bg_aug_prob = 0.2 if 'sailvos' in ex.image_path.lower() else FLAGS.background_aug_prob
-        if (FLAGS.background_aug_prob and (learning_phase == TRAIN or FLAGS.test_aug) and
-                background_rng.rand() < bg_aug_prob):
-            fgmask = improc.decode_mask(ex.mask)
-            if 'surreal' in ex.image_path:
-                # Surreal images are flipped wrong in the official dataset release
-                fgmask = fgmask[:, ::-1]
-            fgmask = cameralib.reproject_image(
-                fgmask, ex.camera, cam, output_imshape, antialias_factor=antialias, interp=interp)
-            im = augmentation.background.augment_background(im, fgmask, background_rng)
+        # Background augmentation
+        if hasattr(ex, 'mask') and ex.mask is not None:
+            bg_aug_prob = 0.2 if 'sailvos' in ex.image_path.lower() else FLAGS.background_aug_prob
+            if (FLAGS.background_aug_prob and (learning_phase == TRAIN or FLAGS.test_aug) and
+                    background_rng.rand() < bg_aug_prob):
+                fgmask = improc.decode_mask(ex.mask)
+                if 'surreal' in ex.image_path:
+                    # Surreal images are flipped wrong in the official dataset release
+                    fgmask = fgmask[:, ::-1]
+                fgmask = cameralib.reproject_image(
+                    fgmask, ex.camera, cam, output_imshape, antialias_factor=antialias, interp=interp)
+                im = augmentation.background.augment_background(im, fgmask, background_rng)
 
     # Occlusion and color augmentation
     im = augmentation.appearance.augment_appearance(
@@ -167,7 +280,21 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
             side = int(crop_h * pad_ratio / 2)
             im[:side, :] = 0
             im[-side:, :] = 0
-
+            
+#     import matplotlib.pyplot as plt
+#     plt.imshow(im)
+#     plt.imshow(origsize_im)
+#     import os
+#     os.makedirs("tmp", exist_ok=True)
+#     full_imgcoords = ex.camera.world_to_image(ex.world_coords)
+#     for coord in upper_imgcoords:
+#         plt.plot(coord[0], coord[1], "o", color='orange')
+#     for coord in imcoords:
+#         plt.plot(coord[0], coord[1], "o", color='orange')
+#     plt.savefig("tmp/abcabcabc_{:03d}.jpg".format(np.random.randint(0, 1000)))
+#     plt.savefig("abcabcabc_{:03d}.jpg".format(np.random.randint(0, 1000)))
+#     plt.clf()
+    
     im = tfu.nhwc_to_std(im)
     im = improc.normalize01(im)
 
@@ -178,7 +305,11 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
 
     rot_to_orig_cam = ex.camera.R @ cam.R.T
     rot_to_world = cam.R.T
-
+    
+    #####################
+#     exit()
+    #####################
+    
     return dict(
         image=im,
         intrinsics=np.float32(cam.intrinsic_matrix),
