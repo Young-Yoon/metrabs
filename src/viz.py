@@ -378,7 +378,8 @@ def plot_wild(input_dir, data_path=data_root, frame_step=2, frame_rate=24):
     out.release()
 
 if input_path in {'all', 'wild'}:
-    plot_wild('sway4d004')
+    for v in ['', 'landscape', 'portrait', 'tight']:
+        plot_wild('sway4d004'+v)
     for test_set in ['inaki', 'kapadia']:
         for subdir in sorted(os.listdir(os.path.join(data_root, test_set))):
             if subdir.startswith(test_set) and not os.path.isfile(os.path.join(data_root, test_set, subdir)):
