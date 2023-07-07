@@ -36,7 +36,7 @@ def vis(imagepath, projected_2d, bbox, keypoint_2d=None):
 
 
 
-@util.cache_result_on_disk(f'{paths.CACHE_DIR}/sway_test.pkl', min_time="2023-06-27T11:30:43")
+@util.cache_result_on_disk(f'{paths.CACHE_DIR}/sway4test.pkl', min_time="2023-06-27T11:30:43")
 def make_sway():
     root_sway = f'{paths.DATA_ROOT}/sway'
 
@@ -63,7 +63,7 @@ def make_sway():
         with open(f'{root_sway}/{phase}.txt', "r") as f:
             seq_names = [line.strip() for line in f.readlines()]
         if phase in {'train'}:
-            seq_names = seq_names[70:100]
+            seq_names = seq_names[70:]
         if phase in {'test'}:
             seq_folders = ['sway61769'] + ['sway_test_variants/'+v for v in ['landscape', 'portrait', 'tight']]
             print(seq_folders)
