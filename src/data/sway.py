@@ -1,5 +1,6 @@
 import os.path
 import numpy as np
+import itertools
 import cameralib
 import data.datasets3d as ps3d
 import paths
@@ -35,7 +36,7 @@ def vis(imagepath, projected_2d, bbox, keypoint_2d=None):
 
 
 
-@util.cache_result_on_disk(f'{paths.CACHE_DIR}/sway9.pkl', min_time="2023-06-27T11:30:43")
+@util.cache_result_on_disk(f'{paths.CACHE_DIR}/sway_test.pkl', min_time="2023-06-27T11:30:43")
 def make_sway():
     root_sway = f'{paths.DATA_ROOT}/sway'
 
@@ -63,8 +64,14 @@ def make_sway():
             seq_names = [line.strip() for line in f.readlines()]
         if phase in {'train'}:
             seq_names = seq_names[70:]
-        for seq_name in util.progressbar(seq_names):
-            seq_path = os.path.join(root_sway, 'sway61769', seq_name)
+        if phase in {'test'}:
+            seq_folders = ['sway61769'] + ['sway_test_variants/'+v for v in ['landscape', 'portrait', 'tight']]
+            print(seq_folders)
+        else:
+            seq_folders = ['sway61769']
+
+        for seq_dir, seq_name in util.progressbar(itertools.product(seq_folders, seq_names)):
+            seq_path = os.path.join(root_sway, seq_dir, seq_name)
             intrinsics = np.load(os.path.join(seq_path, "intrinsics.npy"))
             extrinsics = np.load(os.path.join(seq_path, "extrinsics.npy"))
             if np.isnan(extrinsics).any() or np.isnan(intrinsics).any():
@@ -88,7 +95,7 @@ def make_sway():
                     continue
                 prev_coords = world_coords
 
-                impath = f'sway/sway61769/{seq_name}/images/{i_frame+1:05d}.jpg'
+                impath = f'sway/{seq_dir}/{seq_name}/images/{i_frame+1:05d}.jpg'
                 ex = ps3d.Pose3DExample(impath, world_coords, bbox=bbox[i_frame], camera=camera)
 
 #                 vis(os.path.join(paths.DATA_ROOT, impath), proj2d, bbox[i_frame])

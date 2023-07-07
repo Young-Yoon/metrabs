@@ -28,6 +28,11 @@ def main():
     FLAGS.pred_path = util.ensure_absolute_path(FLAGS.pred_path, f'{paths.DATA_ROOT}/experiments')
 
     all_image_relpaths, all_true3d = get_all_gt_poses()
+    get_next = lambda x: '' if x is None else x[1]
+    activities = np.array([get_next(re.search(f'test_variants/(.+?)\/', path))
+                            for path in all_image_relpaths])
+    print(activities)
+    exit()
     metrics = evaluate(FLAGS.pred_path, all_true3d)
     print(to_latex(metrics))
 
@@ -36,6 +41,7 @@ def evaluate(pred_path, all_true3d):
     all_pred3d = get_all_pred_poses(pred_path)
     if len(all_pred3d) != len(all_true3d):
         raise Exception(f'Unequal sample count! Pred: {len(all_pred3d)}, GT: {len(all_true3d)}')
+
 
     i_root = -1 if FLAGS.root_last else 0
     all_pred3d -= all_pred3d[:, i_root, np.newaxis]
