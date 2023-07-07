@@ -63,7 +63,7 @@ def make_sway():
         with open(f'{root_sway}/{phase}.txt', "r") as f:
             seq_names = [line.strip() for line in f.readlines()]
         if phase in {'train'}:
-            seq_names = seq_names[70:]
+            seq_names = seq_names[70:100]
         if phase in {'test'}:
             seq_folders = ['sway61769'] + ['sway_test_variants/'+v for v in ['landscape', 'portrait', 'tight']]
             print(seq_folders)
@@ -76,9 +76,10 @@ def make_sway():
             extrinsics = np.load(os.path.join(seq_path, "extrinsics.npy"))
             if np.isnan(extrinsics).any() or np.isnan(intrinsics).any():
                 continue
-            camera = cameralib.Camera(
-                extrinsic_matrix=extrinsics, intrinsic_matrix=intrinsics,
-                world_up=(0, 1, 0))
+            if len(intrinsics.shape) == 2:
+                camera = cameralib.Camera(
+                    extrinsic_matrix=extrinsics, intrinsic_matrix=intrinsics,
+                    world_up=(0, 1, 0))
 
             world_pose3d = np.load(os.path.join(seq_path, "wspace_poses3d.npy"))
             bbox = np.load(os.path.join(seq_path, "bbox.npy"))
@@ -88,6 +89,10 @@ def make_sway():
             prev_coords = None
             
             for i_frame in range(0, n_frames, frame_step):
+                if len(intrinsics.shape) == 3:
+                    camera = cameralib.Camera(
+                        extrinsic_matrix=extrinsics, intrinsic_matrix=intrinsics[i_frame],
+                        world_up=(0, 1, 0))
                 world_coords = world_pose3d[i_frame]
                 world_coords = world_coords[i_relevant_joints, :]
                 if (phase == 'train' and prev_coords is not None and
