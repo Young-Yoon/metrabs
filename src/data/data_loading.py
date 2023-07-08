@@ -21,7 +21,7 @@ from tfu import TRAIN
 
     
     
-def full_bbox(ex, joint_info, learning_phase):
+def full_bbox(ex, joint_info, learning_phase, output_side, output_imshape, origsize_im, center_point, geom_rng):
     box = ex.bbox
     # The homographic reprojection of a rectangle (bounding box) will not be another rectangle
     # Hence, instead we transform the side midpoints of the short sides of the box and
@@ -71,7 +71,7 @@ def full_bbox(ex, joint_info, learning_phase):
     im = cameralib.reproject_image(
         origsize_im, ex.camera, cam, output_imshape, antialias_factor=antialias, interp=interp)
     
-    return cam, world_coords, metric_world_coords, camcoords, imcoords, im
+    return cam, camcoords, imcoords, im
     
 
 
@@ -144,8 +144,14 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
         max_y = min_y + side
         
         im = origsize_im[min_y: max_y, min_x: max_x]
+        
+#         if FLAGS.zero_padding_bbox:
+#             print("need to add")
+            
+#         if FLAGS.crop_long_bbox:
+#             print("need to add")
                     
-        if im.shape[0] >= 40 and im.shape[1] >= 40:
+        if im.shape[0] >= 40 and im.shape[1] >= 40:            
             im = cv2r.resize(im, dsize=(output_imshape[1], output_imshape[0]), interpolation=cv2.INTER_AREA, dst=None)
             resize_factor = side / output_side        
             cam = ex.camera.copy()
@@ -155,10 +161,10 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
             camcoords = cam.world_to_camera(metric_world_coords)
             imcoords = cam.world_to_image(metric_world_coords)
         else:
-            cam, world_coords, metric_world_coords, camcoords, imcoords, im = full_bbox(ex, joint_info, learning_phase)            
+            cam, camcoords, imcoords, im = full_bbox(ex, joint_info, learning_phase, output_side, output_imshape, origsize_im, center_point, geom_rng)
             
     else:       
-        cam, world_coords, metric_world_coords, camcoords, imcoords, im = full_bbox(ex, joint_info, learning_phase)
+        cam, camcoords, imcoords, im = full_bbox(ex, joint_info, learning_phase, output_side, output_imshape, origsize_im, center_point, geom_rng)
 
     # Occlusion and color augmentation
     im = augmentation.appearance.augment_appearance(
