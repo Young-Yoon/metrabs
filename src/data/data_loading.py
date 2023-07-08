@@ -14,68 +14,14 @@ import cameralib
 import improc
 import tfu
 import util
+import cv2
+import cv2r
 from options import FLAGS
 from tfu import TRAIN
 
 
-def load_and_transform3d(ex, joint_info, learning_phase, rng):
-    # Get the random number generators for the different augmentations to make it reproducibile
-    appearance_rng = util.new_rng(rng)
-    background_rng = util.new_rng(rng)
-    geom_rng = util.new_rng(rng)
-    partial_visi_rng = util.new_rng(rng)
-    top_bbox_rng = util.new_rng(rng)
-
-    output_side = FLAGS.proc_side
-    output_imshape = (output_side, output_side)
-
-    if 'sailvos' in ex.image_path.lower():
-        # This is needed in order not to lose precision in later operations.
-        # Background: In the Sailvos dataset (GTA V), some world coordinates
-        # are crazy large (several kilometers, i.e. millions of millimeters, which becomes
-        # hard to process with the limited simultaneous dynamic range of float32).
-        # They are stored in float64 but the processing is done in float32 here.
-        ex.world_coords -= ex.camera.t
-        ex.camera.t[:] = 0
-
+def full_bbox(ex, joint_info, learning_phase, output_side, output_imshape, origsize_im, center_point, geom_rng):
     box = ex.bbox
-    
-    if FLAGS.upper_bbox:
-        y_height = box[3]    
-        bbox_ratio =  FLAGS.upper_bbox_ratio
-        if bbox_ratio[0] >= bbox_ratio[1]:
-            top_ratio = bbox_ratio[0]
-        else:
-            top_ratio = top_bbox_rng.uniform(bbox_ratio[0], bbox_ratio[1])
-        go_up= y_height*top_ratio
-        box[3] = go_up
-    
-    if 'surreal' in ex.image_path.lower():
-        # Surreal images are flipped wrong in the official dataset release
-        box = box.copy()
-        box[0] = 320 - (box[0] + box[2])
-
-    # Partial visibility
-    if 'surreal' in ex.image_path.lower() and 'surmuco' not in FLAGS.dataset:
-        partial_visi_prob = 0.5
-    elif 'h36m' in ex.image_path.lower() and 'many' in FLAGS.dataset:
-        partial_visi_prob = 0.5
-    else:
-        partial_visi_prob = FLAGS.partial_visibility_prob
-
-    use_partial_visi_aug = (
-            (learning_phase == TRAIN or FLAGS.test_aug) and
-            partial_visi_rng.rand() < partial_visi_prob)
-    if use_partial_visi_aug:
-        box = util.random_partial_subbox(boxlib.expand_to_square(box), partial_visi_rng)
-
-    # Geometric transformation and augmentation
-    crop_side = np.max(box[2:])
-    center_point = boxlib.center(box)
-    if ((learning_phase == TRAIN and FLAGS.geom_aug) or
-            (learning_phase != TRAIN and FLAGS.test_aug and FLAGS.geom_aug)):
-        center_point += util.random_uniform_disc(geom_rng) * FLAGS.shift_aug / 100 * crop_side
-
     # The homographic reprojection of a rectangle (bounding box) will not be another rectangle
     # Hence, instead we transform the side midpoints of the short sides of the box and
     # determine an appropriate zoom factor by taking the projected distance of these two points
@@ -90,7 +36,7 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
         sidepoints = center_point + np.stack([-delta_x, delta_x])
 
     cam = ex.camera.copy()
-    cam.turn_towards(target_image_point=center_point)
+    # cam.turn_towards(target_image_point=center_point)
     cam.undistort()
     cam.square_pixels()
     cam_sidepoints = cameralib.reproject_image_points(sidepoints, ex.camera, cam)
@@ -116,50 +62,111 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
         metric_world_coords = metric_world_coords[joint_info.mirror_mapping]
     else:
         camcoords = cam.world_to_camera(world_coords)
-
     imcoords = cam.world_to_image(metric_world_coords)
-
-    # Load and reproject image
-    image_path = util.ensure_absolute_path(ex.image_path)
-    origsize_im = improc.imread_jpeg(image_path)
-    if 'surreal' in ex.image_path.lower():
-        # Surreal images are flipped wrong in the official dataset release
-        origsize_im = origsize_im[:, ::-1]
-
     interp_str = (FLAGS.image_interpolation_train
                   if learning_phase == TRAIN else FLAGS.image_interpolation_test)
     antialias = (FLAGS.antialias_train if learning_phase == TRAIN else FLAGS.antialias_test)
     interp = getattr(cv2, 'INTER_' + interp_str.upper())
     im = cameralib.reproject_image(
         origsize_im, ex.camera, cam, output_imshape, antialias_factor=antialias, interp=interp)
+    
+    return cam, camcoords, imcoords, im
 
-    # Color adjustment
-    if re.match('.*mupots/TS[1-5]/.+', ex.image_path):
-        im = improc.adjust_gamma(im, 0.67, inplace=True)
-    elif '3dhp' in ex.image_path and re.match('.+/(TS[1-4])/', ex.image_path):
-        im = improc.adjust_gamma(im, 0.67, inplace=True)
-        im = improc.white_balance(im, 110, 145)
-    elif 'panoptic' in ex.image_path.lower():
-        im = improc.white_balance(im, 120, 138)
 
-    # Background augmentation
-    if hasattr(ex, 'mask') and ex.mask is not None:
-        bg_aug_prob = 0.2 if 'sailvos' in ex.image_path.lower() else FLAGS.background_aug_prob
-        if (FLAGS.background_aug_prob and (learning_phase == TRAIN or FLAGS.test_aug) and
-                background_rng.rand() < bg_aug_prob):
-            fgmask = improc.decode_mask(ex.mask)
-            if 'surreal' in ex.image_path:
-                # Surreal images are flipped wrong in the official dataset release
-                fgmask = fgmask[:, ::-1]
-            fgmask = cameralib.reproject_image(
-                fgmask, ex.camera, cam, output_imshape, antialias_factor=antialias, interp=interp)
-            im = augmentation.background.augment_background(im, fgmask, background_rng)
+def load_and_transform3d(ex, joint_info, learning_phase, rng):
+    # Get the random number generators for the different augmentations to make it reproducibile
+    appearance_rng = util.new_rng(rng)
+    background_rng = util.new_rng(rng)
+    geom_rng = util.new_rng(rng)
+    partial_visi_rng = util.new_rng(rng)
+
+    output_side = FLAGS.proc_side
+    output_imshape = (output_side, output_side)
+
+    # Load and reproject image
+    image_path = util.ensure_absolute_path(ex.image_path)
+    origsize_im = improc.imread_jpeg(image_path)
+    h, w, _ = origsize_im.shape
+
+    box = ex.bbox
+    
+    # resize bbox using keypoints in image coordinate 
+    if FLAGS.upper_bbox:
+        full_imgcoords = ex.camera.world_to_image(ex.world_coords)
+        upper_imgcoords = full_imgcoords[9:]
+        min_x, min_y = 999999, 999999
+        max_x, max_y = -999999, -999999
+        for coord in upper_imgcoords:
+            xx, yy = coord
+            min_x = min(min_x, xx)
+            min_y = min(min_y, yy)
+            max_x = max(max_x, xx)
+            max_y = max(max_y, yy)
+        min_x = max(min_x - 20, 0)
+        min_y = max(min_y - 80, 0)
+        max_x = min(max_x + 20, box[0] + box[2])
+        max_y = min(max_y + 20, box[1] + box[3])
+        box = np.array([min_x, min_y, max_x - min_x, max_y - min_y])
+    
+    partial_visi_prob = FLAGS.partial_visibility_prob
+    use_partial_visi_aug = (
+            (learning_phase == TRAIN or FLAGS.test_aug) and
+            partial_visi_rng.rand() < partial_visi_prob)
+    
+    if use_partial_visi_aug:
+        box = util.random_partial_subbox(boxlib.expand_to_square(box), partial_visi_rng)
+
+    # Geometric transformation and augmentation
+    crop_side = np.max(box[2:])
+    center_point = boxlib.center(box)
+    
+    if ((learning_phase == TRAIN and FLAGS.geom_aug) or
+            (learning_phase != TRAIN and FLAGS.test_aug and FLAGS.geom_aug)):
+        center_point += util.random_uniform_disc(geom_rng) * FLAGS.shift_aug / 100 * crop_side
+        
+    if FLAGS.upper_bbox:
+        side = int(max(box[2], box[3]))
+        side = min(h, w, side)
+
+        min_x = int(center_point[0] - side / 2)
+        min_x = max(min_x, 0)
+        min_x = min(min_x, w - side)
+        
+        min_y = int(center_point[1] - side / 2)
+        min_y = max(min_y, 0)
+        min_y = min(min_y, h - side) 
+        
+        max_x = min_x + side
+        max_y = min_y + side
+        
+        im = origsize_im[min_y: max_y, min_x: max_x]
+        
+#         if FLAGS.zero_padding_bbox:
+#             print("need to add")
+            
+#         if FLAGS.crop_long_bbox:
+#             print("need to add")
+                    
+        if im.shape[0] >= 40 and im.shape[1] >= 40:            
+            im = cv2r.resize(im, dsize=(output_imshape[1], output_imshape[0]), interpolation=cv2.INTER_AREA, dst=None)
+            resize_factor = side / output_side        
+            cam = ex.camera.copy()
+            cam.intrinsic_matrix[:2, 2] -= np.array([min_x, min_y])
+            cam.intrinsic_matrix[:2] /=  resize_factor
+            metric_world_coords = ex.world_coords
+            camcoords = cam.world_to_camera(metric_world_coords)
+            imcoords = cam.world_to_image(metric_world_coords)
+        else:
+            cam, camcoords, imcoords, im = full_bbox(ex, joint_info, learning_phase, output_side, output_imshape, origsize_im, center_point, geom_rng)
+            
+    else:       
+        cam, camcoords, imcoords, im = full_bbox(ex, joint_info, learning_phase, output_side, output_imshape, origsize_im, center_point, geom_rng)
 
     # Occlusion and color augmentation
     im = augmentation.appearance.augment_appearance(
         im, learning_phase, FLAGS.occlude_aug_prob, appearance_rng)
 
-    ### Add zero padding on left or right
+    # Add zero padding on left or right
     if FLAGS.zero_padding > 0:
         crop_h, crop_w, _ = im.shape
         pad_ratio = np.random.uniform(0, FLAGS.zero_padding)
@@ -171,7 +178,7 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
             side = int(crop_h * pad_ratio / 2)
             im[:side, :] = 0
             im[-side:, :] = 0
-
+    
     im = tfu.nhwc_to_std(im)
     im = improc.normalize01(im)
 
@@ -182,7 +189,7 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
 
     rot_to_orig_cam = ex.camera.R @ cam.R.T
     rot_to_world = cam.R.T
-
+    
     return dict(
         image=im,
         intrinsics=np.float32(cam.intrinsic_matrix),

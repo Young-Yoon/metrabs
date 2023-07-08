@@ -386,6 +386,45 @@ def MobileNetV3Small(input_shape=None,
                        dropout_rate, classifier_activation, layers)
 
 
+def MobileNetV3Smalls1(input_shape=None,
+                     alpha=1.0,
+                     minimalistic=False,
+                     include_top=True,
+                     weights='imagenet',
+                     input_tensor=None,
+                     classes=1000,
+                     pooling=None,
+                     dropout_rate=0.2,
+                     classifier_activation='softmax',
+                     layers=None,
+                     centered_stride=False):
+    if layers is None:
+        layers = VersionAwareLayers()
+    l = layers
+
+    def stack_fn(x, kernel, activation, se_ratio):
+        def depth(d):
+            return _depth(d * alpha)
+
+        x = _inverted_res_block(x, 1, depth(16), 3, 2, se_ratio, relu, 0, l)
+        x = _inverted_res_block(x, 72. / 16, depth(24), 3, 2, None, relu, 1, l)
+        x = _inverted_res_block(x, 88. / 24, depth(24), 3, 1, None, relu, 2, l)
+        x = _inverted_res_block(x, 4, depth(40), kernel, 2, se_ratio, activation, 3, l)
+        x = _inverted_res_block(x, 6, depth(40), kernel, 1, se_ratio, activation, 4, l)
+        x = _inverted_res_block(x, 6, depth(40), kernel, 1, se_ratio, activation, 5, l)
+        x = _inverted_res_block(x, 3, depth(48), kernel, 1, se_ratio, activation, 6, l)
+        x = _inverted_res_block(x, 3, depth(48), kernel, 1, se_ratio, activation, 7, l)
+#         x = _inverted_res_block(x, 6, depth(96), kernel, 2, se_ratio, activation, 8, l,
+#                                 bottomright_stride=centered_stride)
+#         x = _inverted_res_block(x, 6, depth(96), kernel, 1, se_ratio, activation, 9, l)
+#         x = _inverted_res_block(x, 6, depth(96), kernel, 1, se_ratio, activation, 10, l)
+        return x
+
+    return MobileNetV3(stack_fn, 1024, input_shape, alpha, 'small', minimalistic,
+                       include_top, weights, input_tensor, classes, pooling,
+                       dropout_rate, classifier_activation, layers)
+
+
 def MobileNetV3Large(input_shape=None,
                      alpha=1.0,
                      minimalistic=False,
@@ -432,6 +471,7 @@ def MobileNetV3Large(input_shape=None,
 
 
 MobileNetV3Small.__doc__ = BASE_DOCSTRING.format(name='MobileNetV3Small')
+MobileNetV3Smalls1.__doc__ = BASE_DOCSTRING.format(name='MobileNetV3Smalls1')
 MobileNetV3Large.__doc__ = BASE_DOCSTRING.format(name='MobileNetV3Large')
 
 

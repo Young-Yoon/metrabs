@@ -77,7 +77,6 @@ class MetroTrainer(models.model_trainer.ModelTrainer):
         return dict(coords3d_rel_pred=self.model(inps['image'], training=False))
 
     def forward_train(self, inps, training):
-        
         preds = AttrDict()
 
         image_both = tf.concat([inps.image, inps.image_2d], axis=0)
@@ -105,14 +104,6 @@ class MetroTrainer(models.model_trainer.ModelTrainer):
         return preds
 
     def compute_losses(self, inps, preds):
-        
-#         print(" Check joint information in compute_losses")
-#         print(" prediction coord 3d : ", preds.coords3d_rel_pred.shape)
-        
-#         print("inp coords3d true",  inps.coords3d_true[:,9:,:].shape)
-#         print("inp coords3d true mask",  inps.joint_validity_mask[:,9:])
-#         print(" flag mean releative",  FLAGS.mean_relative)
-        
         losses = AttrDict()
 
         ####################
@@ -133,14 +124,8 @@ class MetroTrainer(models.model_trainer.ModelTrainer):
         # 2D BATCH
         ####################
 #        for 2d joints joint_ids_3d = [[2], [1], [0], [3], [4], [5], [15], [14], [13], [10], [11], [12]]    # we only need 15,14,13,10,11,12
-        
-        
         scale_2d = 1 / FLAGS.proc_side * FLAGS.box_size_mm / 1000
 
-#         print(" prediction coord 2d : ", preds.coords2d_pred_2d.shape)
-#         print("inp coords2d true",  inps.coords2d_true_2d[:,6:,:].shape)
-#         print("inp coords2d true mask",  inps.joint_validity_mask_2d[:,6:])
-#        print(" flag mean releative",  FLAGS.mean_relative)
         joint_index_start = 6 if FLAGS.output_upper_joints else 0
         
         preds.coords2d_pred_2d = models.util.align_2d_skeletons(
@@ -150,13 +135,11 @@ class MetroTrainer(models.model_trainer.ModelTrainer):
             inps.joint_validity_mask_2d[:, joint_index_start:])
 
         losses.loss = losses.loss3d + FLAGS.loss2d_factor * losses.loss2d
-#        print(tt)
         
         return losses
 
     @tf.function
     def compute_metrics(self, inps, preds):
 #        print("when we use it ? ")
-        
-        return models.eval_metrics.compute_pose3d_metrics_j8(inps, preds) if FLAGS.output_upper_joints else models.eval_metrics.compute_pose3d_metrics(inps, preds) 
-
+        return models.eval_metrics.compute_pose3d_metrics_j8(inps, preds) if FLAGS.output_upper_joints else models.eval_metrics.compute_pose3d_metrics(inps, preds)
+ 
