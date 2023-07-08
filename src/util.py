@@ -460,7 +460,7 @@ def compute_mac(model_dir):
     import tensorflow as tf
     from tensorflow.python.framework.convert_to_constants import convert_variables_to_constants_v2_as_graph
     model = tf.saved_model.load(model_dir)
-    inp = 112 if "in112" in model_dir else 160 if "in160" in model_dir else 256 
+    inp = 112 if "112" in model_dir else 128 if "128" in model_dir else 160 if "160" in model_dir else 256 
     concrete_func = tf.function(lambda inputs: model.predict_multi(inputs)).get_concrete_function(
         tf.TensorSpec([1, inp, inp, 3], dtype=tf.float16))
     frozen_func, graph_def = convert_variables_to_constants_v2_as_graph(concrete_func)

@@ -19,8 +19,7 @@ import cv2r
 from options import FLAGS
 from tfu import TRAIN
 
-    
-    
+
 def full_bbox(ex, joint_info, learning_phase, output_side, output_imshape, origsize_im, center_point, geom_rng):
     box = ex.bbox
     # The homographic reprojection of a rectangle (bounding box) will not be another rectangle
@@ -72,7 +71,6 @@ def full_bbox(ex, joint_info, learning_phase, output_side, output_imshape, origs
         origsize_im, ex.camera, cam, output_imshape, antialias_factor=antialias, interp=interp)
     
     return cam, camcoords, imcoords, im
-    
 
 
 def load_and_transform3d(ex, joint_info, learning_phase, rng):
@@ -92,7 +90,6 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
 
     box = ex.bbox
     
-    
     # resize bbox using keypoints in image coordinate 
     if FLAGS.upper_bbox:
         full_imgcoords = ex.camera.world_to_image(ex.world_coords)
@@ -110,7 +107,6 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
         max_x = min(max_x + 20, box[0] + box[2])
         max_y = min(max_y + 20, box[1] + box[3])
         box = np.array([min_x, min_y, max_x - min_x, max_y - min_y])
-    
     
     partial_visi_prob = FLAGS.partial_visibility_prob
     use_partial_visi_aug = (
@@ -170,7 +166,7 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
     im = augmentation.appearance.augment_appearance(
         im, learning_phase, FLAGS.occlude_aug_prob, appearance_rng)
 
-    ### Add zero padding on left or right
+    # Add zero padding on left or right
     if FLAGS.zero_padding > 0:
         crop_h, crop_w, _ = im.shape
         pad_ratio = np.random.uniform(0, FLAGS.zero_padding)
@@ -182,7 +178,6 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
             side = int(crop_h * pad_ratio / 2)
             im[:side, :] = 0
             im[-side:, :] = 0
-
     
     im = tfu.nhwc_to_std(im)
     im = improc.normalize01(im)
@@ -195,7 +190,6 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
     rot_to_orig_cam = ex.camera.R @ cam.R.T
     rot_to_world = cam.R.T
     
-    
     return dict(
         image=im,
         intrinsics=np.float32(cam.intrinsic_matrix),
@@ -207,7 +201,6 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
         cam_loc=cam.t.astype(np.float32),
         joint_validity_mask=joint_validity_mask,
         is_joint_in_fov=np.float32(is_joint_in_fov))
-
 
 
 def load_and_transform2d(ex, joint_info, learning_phase, rng):

@@ -23,6 +23,14 @@ def load_coords(path):
     return coords_raw.reshape(coords_new_shape)[:, i_relevant_joints]
 
 
+def load_coords_sway(path):
+    i_relevant_joints = [2, 5, 8, 1, 4, 7, 9, 12, 15, 15, 16, 18, 20, 17, 19, 21, 0]
+    world_pose3d = np.load(path)
+    world_coords = world_pose3d[:, i_relevant_joints]
+    world_coords -= world_coords[:, -1, np.newaxis]
+    return world_coords
+
+
 def plot_skeleton(axis, p, color='r'):
     axis.scatter(p[:, 0], p[:, 1], p[:, 2], s=1, c=color)
 
@@ -48,6 +56,17 @@ def upper_plot_skeleton(axis, p, color='r'):
     plt.plot([center_shoulder[0], p[0, 0]], [center_shoulder[1], p[0, 1]], [center_shoulder[2], p[0, 2]], color)            
     plt.plot([center_shoulder[0], p[7, 0]], [center_shoulder[1], p[7, 1]], [center_shoulder[2], p[7, 2]], color)           
         
+
+def adjust_bbox(x0, y0, w0, h0, upbb=False): 
+    if upbb:
+        h0 *= 0.5
+    if w0 < h0:
+        w1, h1 = h0, h0
+        x1, y1 = x0 - (h0 - w0) / 2., y0
+    else:
+        w1, h1 = w0, w0  
+        x1, y1 = x0, y0 #- (w0 - h0) / 2.
+    return x1, y1, w1, h1
 
 
 def get_crop(img0, x0, y0, w0, h0):
@@ -78,6 +97,12 @@ def prep_dir(target_path):
 # usage: python viz.py model_path1 .. model_pathN ('h36m' or input_path) outname
 #     or python viz.py model_path
 args = sys.argv[1:]
+if len(args) > 1 and args[0] == 'up':
+    upbbox = True
+    args = args[1:]
+else:
+    upbbox = False
+
 if len(args) == 1:
     model_folders = args
     outname = args[0].replace('/', '_')
@@ -113,7 +138,7 @@ views = [(deg, deg - 90), (deg, deg), (90 - deg, deg - 90)]
 fsz = 2
 use_detector=True
 
-def plot_h36m(act_key=None, frame_step=5, data_path=data_root+'metrabs-processed/h36m/'):
+def plot_h36m(act_key=None, frame_step=25, data_path=data_root+'metrabs-processed/h36m/'):
     cam_param = exp_root + "visualize/human36m-camera-parameters/camera-parameters.json"
     with open(cam_param, 'r') as j:
          cam = json.loads(j.read())
@@ -126,8 +151,10 @@ def plot_h36m(act_key=None, frame_step=5, data_path=data_root+'metrabs-processed
         number_activity=0
         for activity, cam_id in itertools.product(data.h36m.get_activity_names(i_subj), range(4)):
                 
-                if number_activity==10:
+                if number_activity==4:
                     break
+                if cam_id > 0:
+                    continue
                 
                 print(activity, cam_id, number_activity)
                 im_arr = []
@@ -182,12 +209,7 @@ def plot_h36m(act_key=None, frame_step=5, data_path=data_root+'metrabs-processed
                         x, y, wd, ht = 0, 0, img.width, img.height
                     else:
                         x, y, wd, ht, conf = bbox[0]
-                    if wd < ht:
-                        y_sq, ht_sq = y, ht
-                        x_sq, wd_sq = x-(ht-wd)/2., ht
-                    else:
-                        x_sq, wd_sq = x, wd
-                        y_sq, ht_sq = y-(wd-ht)/2., wd
+                    x_sq, y_sq, wd_sq, ht_sq = adjust_bbox(x, y, wd, ht, upbbox)
                     x_gt, y_gt, wd_gt, ht_gt = bboxes_gt[i_frame]
 
                     crop = get_crop(img, x, y, wd, ht)
@@ -258,14 +280,19 @@ def plot_h36m(act_key=None, frame_step=5, data_path=data_root+'metrabs-processed
                 number_activity =  number_activity+1
 
 
-def plot_wild(input_dir, data_path=data_root, frame_step=1, frame_rate=15):
+def plot_wild(input_dir, data_path=data_root, frame_step=2, frame_rate=24):
+    gt_path = ''
     if "inaki" in input_dir:
         data_path += 'inaki/'
     if "kapadia" in input_dir:
         data_path += 'kapadia/'
+        frame_step = 5
     if "sway" in input_dir:
         frame_step = 5
-
+        gt_path = os.path.join(data_path, input_dir, "wspace_poses3d.npy")
+        world_coords = load_coords_sway(gt_path)[::frame_step]
+        input_dir += '/images'
+        
     frames = sorted(glob.glob(os.path.join(data_path, input_dir, '*.jpg')))
     frames = [f.split('/')[-1] for f in frames]
     total_frames = len(frames)
@@ -276,7 +303,7 @@ def plot_wild(input_dir, data_path=data_root, frame_step=1, frame_rate=15):
     prep_dir(output_path+'/'+input_dir)
     im_arr = []
     camR = np.array([[[1., 0, 0], [0, 0, 1.], [0, -1., 0]]])
-    for frame in tqdm(frames[::frame_step]):
+    for i_fr, frame in enumerate(tqdm(frames[::frame_step])):
         save_path = output_path + '/' + input_dir + '/' + frame
         #print(save_path, input_dir, frame)
         input_file = os.path.join(data_path, input_dir, frame)
@@ -286,13 +313,7 @@ def plot_wild(input_dir, data_path=data_root, frame_step=1, frame_rate=15):
             if len(bbox)==0:
                 continue
             x, y, wd, ht, conf = bbox[0]
-            if wd < ht:
-                y_sq, ht_sq = y, ht
-                x_sq, wd_sq = x - (ht - wd) / 2., ht
-            else:
-                x_sq, wd_sq = x, wd
-                y_sq, ht_sq = y - (wd - ht) / 2., wd
-
+            x_sq, y_sq, wd_sq, ht_sq = adjust_bbox(x, y, wd, ht, upbbox)
             crop_sq = get_crop(img, x_sq, y_sq, wd_sq, ht_sq)
         else:
             crop_sq = np.array(img)
@@ -310,6 +331,10 @@ def plot_wild(input_dir, data_path=data_root, frame_step=1, frame_rate=15):
             for i_v in range(len(views)):
                 ax = fig.add_subplot(len(views), nmdl + 1, (nmdl + 1) * i_v + i_m + 2, projection='3d')
                 ax.view_init(*views[i_v])
+
+                if bool(gt_path):
+                    gt = world_coords[i_fr]
+                    plot_skeleton(ax, gt, 'b')
                 plot_fn(ax, tt_sq, 'r')
 
                 # ax.set_xlabel('x')
@@ -317,7 +342,13 @@ def plot_wild(input_dir, data_path=data_root, frame_step=1, frame_rate=15):
                 ax.set_zlim3d(-700, 700)
                 ax.set_ylim3d(-700, 700)
                 if i_v == 0:
-                    ax.set_title(f"{model_name[i_m][-3].split('_')[2]}_in{input_size[i_m]}")
+                    mdl_name = model_folders[i_m]
+                    if len(mdl_name)>30:
+                        mdl_name = mdl_name.split('/')[-1]
+                        if len(mdl_name) > 30:
+                            mdl_name = mdl_name[:30]
+                    ax.set_title(f"{mdl_name}")
+                    ax.title.set_size(180/len(mdl_name))
 
         ax2 = fig.add_subplot(len(views), nmdl + 1, 1)
         ax2.imshow(img)
@@ -325,7 +356,8 @@ def plot_wild(input_dir, data_path=data_root, frame_step=1, frame_rate=15):
         rect_sq = patches.Rectangle((x_sq, y_sq), wd_sq, ht_sq, linewidth=1, edgecolor='b', facecolor='none')
         ax2.add_patch(rect_sq)
         ax2.add_patch(rect)
-        ax2.set_title(input_path)
+        ax2.set_title(input_dir)
+        ax2.title.set_size(np.min([130/len(input_dir), 10]))
 
         ax3 = fig.add_subplot(len(views), nmdl + 1, nmdl + 2)
         ax3.imshow(res_sq)
@@ -339,22 +371,23 @@ def plot_wild(input_dir, data_path=data_root, frame_step=1, frame_rate=15):
         h, w, c = img.shape
         im_arr.append(img)
 
-    out = cv2.VideoWriter(output_path + f'/{input_dir}.mp4',
+    out = cv2.VideoWriter(output_path + f'/{input_dir.replace("/","_")}.mp4',
                           cv2.VideoWriter_fourcc(*'mp4v'), frame_rate/frame_step, (w, h))
     for fr in im_arr:
         out.write(fr)
     out.release()
 
-if input_path == 'all':
+if input_path in {'all', 'wild'}:
+    for v in ['', 'landscape', 'portrait', 'tight']:
+        plot_wild('sway4d004'+v)
     for test_set in ['inaki', 'kapadia']:
         for subdir in sorted(os.listdir(os.path.join(data_root, test_set))):
-            if not os.path.isfile(os.path.join(data_root, test_set, subdir)):
-                print(subdir)
+            if subdir.startswith(test_set) and not os.path.isfile(os.path.join(data_root, test_set, subdir)):
+                print("Processing ", data_root, test_set, subdir)
                 plot_wild(subdir)
-#                 exit()
-    plot_h36m()
+    if input_path in {'all'}:
+        plot_h36m()
 elif input_path.startswith('h36m'):
     plot_h36m(input_path[4:])
 else:
     plot_wild(input_path)
-
