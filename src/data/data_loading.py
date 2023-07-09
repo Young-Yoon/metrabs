@@ -125,31 +125,27 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
         center_point += util.random_uniform_disc(geom_rng) * FLAGS.shift_aug / 100 * crop_side
         
     if FLAGS.upper_bbox:
-        side = int(max(box[2], box[3]))
-        side = min(h, w, side)
+        x0, y0, w0, h0 = box
+        if w0 < h0:
+            w1, h1 = h0, h0
+            x1, y1 = x0 - (h0 - w0) / 2., y0
+        else:
+            w1, h1 = w0, w0  
+            x1, y1 = x0, y0 - (w0 - h0) / 2.    
 
-        min_x = int(center_point[0] - side / 2)
-        min_x = max(min_x, 0)
-        min_x = min(min_x, w - side)
+        x1_max = x1 + w1
+        y1_max = y1 + h1
+        x1 = max(x1, 0)
+        y1 = max(y1, 0)
+        x1_max = min(x1_max, w)
+        y1_max = min(y1_max, h)  
+        w1 = x1_max - x1
+        h1 = y1_max - y1
         
-        min_y = int(center_point[1] - side / 2)
-        min_y = max(min_y, 0)
-        min_y = min(min_y, h - side) 
-        
-        max_x = min_x + side
-        max_y = min_y + side
-        
-#        im = origsize_im[min_y: max_y, min_x: max_x]
-        
-        h1 = max_y - min_y
-        w1 = max_x - min_x
-        x1 = min_x
-        y1 = min_y
-
-        if FLAGS.crop_mode==0 or FLAGS.crop_mode==1:
-            im = np.array(origsize_im)[int(min_y):int(max_y), int(min_x):int(max_x)]
-        elif FLAGS.crop_mode==2:
-            crop_img = np.array(origsize_im)[int(min_y):int(max_y), int(min_x):int(max_x)]
+        if FLAGS.crop_mode in [0, 1]:    
+            im = np.array(origsize_im)[int(y1):int(y1_max), int(x1):int(x1_max)]
+        elif FLAGS.crop_mode == 2:
+            crop_img = np.array(origsize_im)[int(y1):int(y1_max), int(x1):int(x1_max)]
             crop_h, crop_w, _ = crop_img.shape
             crop_l = max(crop_h, crop_w)
             zp_crop_img = np.zeros([crop_l, crop_l, 3], dtype=crop_img.dtype)
@@ -157,7 +153,7 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
             w_offset = int((crop_l - crop_w) / 2)
             zp_crop_img[h_offset: h_offset + crop_h, w_offset: w_offset + crop_w] = crop_img
             im = zp_crop_img
-        elif FLAGS.crop_mode==3:
+        elif FLAGS.crop_mode == 3:
             if w1 < h1:
                 w3, h3 = w1, w1
                 x3, y3 = x1, y1 + (h1 - w1) * 0.1
@@ -169,7 +165,53 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
             im = np.array(origsize_im)[int(y3):int(y3_max), int(x3):int(x3_max)]
         else:
             print("Error. Unsupported bbox squarization mode. Only 0, 1, 2, 3 are supported!")
-            exit()
+            exit()        
+
+#         side = int(max(box[2], box[3]))
+#         # side = min(h, w, side)
+
+#         min_x = int(center_point[0] - side / 2)
+#         min_x = max(min_x, 0)
+#         min_x = min(min_x, w - side)
+        
+#         min_y = int(center_point[1] - side / 2)
+#         min_y = max(min_y, 0)
+#         min_y = min(min_y, h - side) 
+        
+#         max_x = min(min_x + side, w)
+#         max_y = min(min_y + side, h)
+        
+# #        im = origsize_im[min_y: max_y, min_x: max_x]
+        
+#         h1 = max_y - min_y
+#         w1 = max_x - min_x
+#         x1 = min_x
+#         y1 = min_y
+
+#         if FLAGS.crop_mode==0 or FLAGS.crop_mode==1:
+#             im = np.array(origsize_im)[int(min_y):int(max_y), int(min_x):int(max_x)]
+#         elif FLAGS.crop_mode==2:
+#             crop_img = np.array(origsize_im)[int(min_y):int(max_y), int(min_x):int(max_x)]
+#             crop_h, crop_w, _ = crop_img.shape
+#             crop_l = max(crop_h, crop_w)
+#             zp_crop_img = np.zeros([crop_l, crop_l, 3], dtype=crop_img.dtype)
+#             h_offset = int((crop_l - crop_h) / 2)
+#             w_offset = int((crop_l - crop_w) / 2)
+#             zp_crop_img[h_offset: h_offset + crop_h, w_offset: w_offset + crop_w] = crop_img
+#             im = zp_crop_img
+#         elif FLAGS.crop_mode==3:
+#             if w1 < h1:
+#                 w3, h3 = w1, w1
+#                 x3, y3 = x1, y1 + (h1 - w1) * 0.1
+#             else:
+#                 w3, h3 = h1, h1  
+#                 x3, y3 = x1 + (w1 - h1) * 0.5, y1
+#             x3_max = x3 + w3
+#             y3_max = y3 + h3
+#             im = np.array(origsize_im)[int(y3):int(y3_max), int(x3):int(x3_max)]
+#         else:
+#             print("Error. Unsupported bbox squarization mode. Only 0, 1, 2, 3 are supported!")
+#             exit()
 
                     
         if im.shape[0] >= 40 and im.shape[1] >= 40:            
