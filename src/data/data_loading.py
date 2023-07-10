@@ -141,6 +141,7 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
         y1_max = min(y1_max, h)  
         w1 = x1_max - x1
         h1 = y1_max - y1
+        side = max(w1, h1)
         
         if FLAGS.crop_mode in [0, 1]:    
             im = np.array(origsize_im)[int(y1):int(y1_max), int(x1):int(x1_max)]
@@ -162,57 +163,11 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
                 x3, y3 = x1 + (w1 - h1) * 0.5, y1
             x3_max = x3 + w3
             y3_max = y3 + h3
+            side = max(w3, h3)
             im = np.array(origsize_im)[int(y3):int(y3_max), int(x3):int(x3_max)]
         else:
             print("Error. Unsupported bbox squarization mode. Only 0, 1, 2, 3 are supported!")
-            exit()        
-
-#         side = int(max(box[2], box[3]))
-#         # side = min(h, w, side)
-
-#         min_x = int(center_point[0] - side / 2)
-#         min_x = max(min_x, 0)
-#         min_x = min(min_x, w - side)
-        
-#         min_y = int(center_point[1] - side / 2)
-#         min_y = max(min_y, 0)
-#         min_y = min(min_y, h - side) 
-        
-#         max_x = min(min_x + side, w)
-#         max_y = min(min_y + side, h)
-        
-# #        im = origsize_im[min_y: max_y, min_x: max_x]
-        
-#         h1 = max_y - min_y
-#         w1 = max_x - min_x
-#         x1 = min_x
-#         y1 = min_y
-
-#         if FLAGS.crop_mode==0 or FLAGS.crop_mode==1:
-#             im = np.array(origsize_im)[int(min_y):int(max_y), int(min_x):int(max_x)]
-#         elif FLAGS.crop_mode==2:
-#             crop_img = np.array(origsize_im)[int(min_y):int(max_y), int(min_x):int(max_x)]
-#             crop_h, crop_w, _ = crop_img.shape
-#             crop_l = max(crop_h, crop_w)
-#             zp_crop_img = np.zeros([crop_l, crop_l, 3], dtype=crop_img.dtype)
-#             h_offset = int((crop_l - crop_h) / 2)
-#             w_offset = int((crop_l - crop_w) / 2)
-#             zp_crop_img[h_offset: h_offset + crop_h, w_offset: w_offset + crop_w] = crop_img
-#             im = zp_crop_img
-#         elif FLAGS.crop_mode==3:
-#             if w1 < h1:
-#                 w3, h3 = w1, w1
-#                 x3, y3 = x1, y1 + (h1 - w1) * 0.1
-#             else:
-#                 w3, h3 = h1, h1  
-#                 x3, y3 = x1 + (w1 - h1) * 0.5, y1
-#             x3_max = x3 + w3
-#             y3_max = y3 + h3
-#             im = np.array(origsize_im)[int(y3):int(y3_max), int(x3):int(x3_max)]
-#         else:
-#             print("Error. Unsupported bbox squarization mode. Only 0, 1, 2, 3 are supported!")
-#             exit()
-
+            exit()
                     
         if im.shape[0] >= 40 and im.shape[1] >= 40:            
             im = cv2r.resize(im, dsize=(output_imshape[1], output_imshape[0]), interpolation=cv2.INTER_AREA, dst=None)
