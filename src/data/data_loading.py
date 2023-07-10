@@ -94,20 +94,8 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
     if FLAGS.upper_bbox:
         full_imgcoords = ex.camera.world_to_image(ex.world_coords)
         upper_imgcoords = full_imgcoords[9:]
-        min_x, min_y = 999999, 999999
-        max_x, max_y = -999999, -999999
-        for coord in upper_imgcoords:
-            xx, yy = coord
-            min_x = min(min_x, xx)
-            min_y = min(min_y, yy)
-            max_x = max(max_x, xx)
-            max_y = max(max_y, yy)
-        min_x = max(min_x - 20, 0)
-        min_y = max(min_y - 80, 0)
-        max_x = min(max_x + 20, box[0] + box[2])
-        max_y = min(max_y + 20, box[1] + box[3])
-        box = np.array([min_x, min_y, max_x - min_x, max_y - min_y])
-    
+        box = boxlib.expand_with_margin(boxlib.bb_of_points(upper_imgcoords), [20, 80, 20, 20])
+
     partial_visi_prob = FLAGS.partial_visibility_prob
     use_partial_visi_aug = (
             (learning_phase == TRAIN or FLAGS.test_aug) and
@@ -125,22 +113,8 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
         center_point += util.random_uniform_disc(geom_rng) * FLAGS.shift_aug / 100 * crop_side
         
     if FLAGS.upper_bbox:
-        x0, y0, w0, h0 = box
-        if w0 < h0:
-            w1, h1 = h0, h0
-            x1, y1 = x0 - (h0 - w0) / 2., y0
-        else:
-            w1, h1 = w0, w0  
-            x1, y1 = x0, y0 - (w0 - h0) / 2.    
-
-        x1_max = x1 + w1
-        y1_max = y1 + h1
-        x1 = max(x1, 0)
-        y1 = max(y1, 0)
-        x1_max = min(x1_max, w)
-        y1_max = min(y1_max, h)  
-        w1 = x1_max - x1
-        h1 = y1_max - y1
+        x1, y1, w1, h1 = boxlib.intersect(boxlib.expand_to_square(box), np.array([0, 0, w, h]))
+        x1_max, y1_max = x1 + w1, y1 + h1
         side = max(w1, h1)
         
         if FLAGS.crop_mode in [0, 1]:    
@@ -173,7 +147,7 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
             im = cv2r.resize(im, dsize=(output_imshape[1], output_imshape[0]), interpolation=cv2.INTER_AREA, dst=None)
             resize_factor = side / output_side        
             cam = ex.camera.copy()
-            cam.intrinsic_matrix[:2, 2] -= np.array([min_x, min_y])
+            cam.intrinsic_matrix[:2, 2] -= box[:2]
             cam.intrinsic_matrix[:2] /=  resize_factor
             metric_world_coords = ex.world_coords
             camcoords = cam.world_to_camera(metric_world_coords)

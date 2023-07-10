@@ -11,6 +11,12 @@ def expand(bbox, expansion_factor=1):
     return np.concatenate([center_point - new_size / 2, new_size])
 
 
+def expand_with_margin(box, margin):  # left, top, right, bottom
+    topleft = box[:2] - margin[:2]
+    new_size = box[2:] + margin[:2] + margin[2:]
+    return np.concatenate([topleft, new_size])
+
+
 def center(box):
     return box[:2] + box[2:4] / 2
 
