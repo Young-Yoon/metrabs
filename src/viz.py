@@ -392,6 +392,8 @@ def plot_wild(input_dir, data_path=data_root, frame_step=2, frame_rate=30):
     prep_dir(output_path+'/'+input_dir)
     im_arr = []
     camR = np.array([[[1., 0, 0], [0, 0, 1.], [0, -1., 0]]])
+    npyfiles = np.zeros([nmdl, len(frames[::frame_step]), 8, 3])
+    
     for i_fr, frame in enumerate(tqdm(frames[::frame_step])):
         save_path = output_path + '/' + input_dir + '/' + frame
         #print(save_path, input_dir, frame)
@@ -412,6 +414,7 @@ def plot_wild(input_dir, data_path=data_root, frame_step=2, frame_rate=30):
         pred_w_sq = []
         for i_m, model in enumerate(models):
             tt_sq, res_sq = get_pred(crop_sq, input_size[i_m], model, camR)
+            npyfiles[i_m, i_fr] = tt_sq.numpy()
             pred_w_sq.append(tt_sq)
 
         fig = plt.figure(figsize=(fsz * nmdl + fsz, fsz * len(views)))
@@ -468,6 +471,13 @@ def plot_wild(input_dir, data_path=data_root, frame_step=2, frame_rate=30):
     for fr in im_arr:
         out.write(fr)
     out.release()
+
+    bbox_name = "upperbbox" if upbbox else "fullbbox"
+    for i_m in range(nmdl):
+        mdl_name = model_folders[i_m]
+        np.save(output_path + f'/{os.path.split(mdl_name)[1]}_{input_dir.replace("/images", "")}_{bbox_name}_sq{bbox_square_mode}.npy', npyfiles[i_m])
+    return
+
 
 if input_path in {'all', 'wild'}:
     plot_wild('sway4d004')
