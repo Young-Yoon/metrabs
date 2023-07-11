@@ -15,15 +15,15 @@ def prep_dir(target_path):
 
 
 def main():
-    model = tf.saved_model.load(download_model('metrabs_mob3s_y4t'))
+    model = tf.saved_model.load(download_model('metrabs_eff2l_y4'))
 
-    outname = 'metrabs_mob3s'
+    outname = 'metrabs_eff2l_y4'
     exp_root = '/home/jovyan/runs/metrabs-exp/'
     data_root = '/home/jovyan/data/'    
     frame_step = 1
-    frame_rate = 15
+    frame_rate = 30
     
-    for test_set in ['inaki', 'kapadia']:
+    for test_set in ['sway4d004', 'sway4d004landscape', 'sway4d004portrait', 'sway4d004tight','inaki', 'kapadia']:
         for subdir in sorted(os.listdir(os.path.join(data_root, test_set))):
             if not os.path.isfile(os.path.join(data_root, test_set, subdir)):
     
@@ -34,21 +34,32 @@ def main():
 
                 if "inaki" in input_dir:
                     data_path += 'inaki/'
+                    frame_step = 1                                        
                 if "kapadia" in input_dir:
                     data_path += 'kapadia/'
+                    frame_step = 1                    
+                if "sway" in test_set:
+                    #data_path += '/images'
+                    input_dir = test_set
+                    input_dir += '/images'
+                    
+                    frame_step = 1                    
 
-
-                total_frames = len(glob.glob(os.path.join(data_path, input_dir, 'frame*.jpg')))
+                frames = sorted(glob.glob(os.path.join(data_path, input_dir, '*.jpg')))
+                frames = [f.split('/')[-1] for f in frames]
+                total_frames = len(frames)
+                if total_frames == 0:
+                    print(f'No frames in the folder {os.path.join(data_path, input_dir)}')
+                
+                
                 output_path = (exp_root + "visualize/" + outname)
                 prep_dir(output_path)
                 prep_dir(output_path+'/'+input_dir)
                 im_arr = []
                 
-                for i_frame in tqdm(range(0, total_frames, frame_step)):
-                    save_path = output_path + '/' + input_dir + f'/frame_{i_frame}.jpg'
-                    input_file = os.path.join(data_path, input_dir, f'frame{i_frame}.jpg')
-                    print(input_file)    
-
+                for i_fr, frame in enumerate(tqdm(frames[::frame_step])):
+                    save_path = output_path + '/' + input_dir + '/' + frame
+                    input_file = os.path.join(data_path, input_dir, frame)
 
                     image = tf.image.decode_jpeg(tf.io.read_file(input_file))
                     #skeleton = 'smpl_24'
