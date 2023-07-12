@@ -16,34 +16,36 @@ def prep_dir(target_path):
 
 def main():
     model = tf.saved_model.load(download_model('metrabs_eff2l_y4'))
+#     model = tf.saved_model.load(download_model('metrabs_mob3s_y4'))
 
     outname = 'metrabs_eff2l_y4'
     exp_root = '/home/jovyan/runs/metrabs-exp/'
     data_root = '/home/jovyan/data/'    
     frame_step = 1
     frame_rate = 30
-    
+
     for test_set in ['sway4d004', 'sway4d004landscape', 'sway4d004portrait', 'sway4d004tight','inaki', 'kapadia']:
+#     for test_set in ['kapadia']:
         for subdir in sorted(os.listdir(os.path.join(data_root, test_set))):
             if not os.path.isfile(os.path.join(data_root, test_set, subdir)):
     
-                print(subdir)
-
                 data_path = data_root
                 input_dir = subdir
 
                 if "inaki" in input_dir:
                     data_path += 'inaki/'
                     frame_step = 1                                        
-                if "kapadia" in input_dir:
+                elif "kapadia" in input_dir:
                     data_path += 'kapadia/'
-                    frame_step = 1                    
-                if "sway" in test_set:
+                    frame_step = 2                    
+                elif "sway" in test_set:
                     #data_path += '/images'
                     input_dir = test_set
                     input_dir += '/images'
                     
-                    frame_step = 1                    
+                    frame_step = 1  
+                else:
+                    continue
 
                 frames = sorted(glob.glob(os.path.join(data_path, input_dir, '*.jpg')))
                 frames = [f.split('/')[-1] for f in frames]
@@ -160,8 +162,7 @@ def visualize_matplotlib(image, pred, joint_names, joint_edges, save_path):
         for jj, (i_start, i_end) in enumerate(joint_edges):
             if i_start in upper_indices and i_end in upper_indices:
                 image_ax.plot(*zip(pose2d[i_start], pose2d[i_end]), marker='o', markersize=2)
-        image_ax.scatter(*pose2d.T, s=2)
-
+        image_ax.scatter(*pose2d[upper_indices].T, s=2)
         
     for vv, view in enumerate(views):
         pose_ax = fig.add_subplot(3, 2, (vv + 1) * 2, projection='3d')
