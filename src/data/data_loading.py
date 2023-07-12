@@ -94,20 +94,8 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
     if FLAGS.upper_bbox:
         full_imgcoords = ex.camera.world_to_image(ex.world_coords)
         upper_imgcoords = full_imgcoords[9:]
-        min_x, min_y = 999999, 999999
-        max_x, max_y = -999999, -999999
-        for coord in upper_imgcoords:
-            xx, yy = coord
-            min_x = min(min_x, xx)
-            min_y = min(min_y, yy)
-            max_x = max(max_x, xx)
-            max_y = max(max_y, yy)
-        min_x = max(min_x - 20, 0)
-        min_y = max(min_y - 80, 0)
-        max_x = min(max_x + 20, box[0] + box[2])
-        max_y = min(max_y + 20, box[1] + box[3])
-        box = np.array([min_x, min_y, max_x - min_x, max_y - min_y])
-    
+        box = boxlib.expand_with_margin(boxlib.bb_of_points(upper_imgcoords), [20, 80, 20, 20])
+
     partial_visi_prob = FLAGS.partial_visibility_prob
     use_partial_visi_aug = (
             (learning_phase == TRAIN or FLAGS.test_aug) and
@@ -125,33 +113,41 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
         center_point += util.random_uniform_disc(geom_rng) * FLAGS.shift_aug / 100 * crop_side
         
     if FLAGS.upper_bbox:
-        side = int(max(box[2], box[3]))
-        side = min(h, w, side)
-
-        min_x = int(center_point[0] - side / 2)
-        min_x = max(min_x, 0)
-        min_x = min(min_x, w - side)
+        x1, y1, w1, h1 = boxlib.intersect(boxlib.expand_to_square(box), np.array([0, 0, w, h]))
+        x1_max, y1_max = x1 + w1, y1 + h1
+        side = max(w1, h1)
         
-        min_y = int(center_point[1] - side / 2)
-        min_y = max(min_y, 0)
-        min_y = min(min_y, h - side) 
-        
-        max_x = min_x + side
-        max_y = min_y + side
-        
-        im = origsize_im[min_y: max_y, min_x: max_x]
-        
-#         if FLAGS.zero_padding_bbox:
-#             print("need to add")
-            
-#         if FLAGS.crop_long_bbox:
-#             print("need to add")
+        if FLAGS.crop_mode in [0, 1]:    
+            im = np.array(origsize_im)[int(y1):int(y1_max), int(x1):int(x1_max)]
+        elif FLAGS.crop_mode == 2:
+            crop_img = np.array(origsize_im)[int(y1):int(y1_max), int(x1):int(x1_max)]
+            crop_h, crop_w, _ = crop_img.shape
+            crop_l = max(crop_h, crop_w)
+            zp_crop_img = np.zeros([crop_l, crop_l, 3], dtype=crop_img.dtype)
+            h_offset = int((crop_l - crop_h) / 2)
+            w_offset = int((crop_l - crop_w) / 2)
+            zp_crop_img[h_offset: h_offset + crop_h, w_offset: w_offset + crop_w] = crop_img
+            im = zp_crop_img
+        elif FLAGS.crop_mode == 3:
+            if w1 < h1:
+                w3, h3 = w1, w1
+                x3, y3 = x1, y1 + (h1 - w1) * 0.1
+            else:
+                w3, h3 = h1, h1  
+                x3, y3 = x1 + (w1 - h1) * 0.5, y1
+            x3_max = x3 + w3
+            y3_max = y3 + h3
+            side = max(w3, h3)
+            im = np.array(origsize_im)[int(y3):int(y3_max), int(x3):int(x3_max)]
+        else:
+            print("Error. Unsupported bbox squarization mode. Only 0, 1, 2, 3 are supported!")
+            exit()
                     
         if im.shape[0] >= 40 and im.shape[1] >= 40:            
             im = cv2r.resize(im, dsize=(output_imshape[1], output_imshape[0]), interpolation=cv2.INTER_AREA, dst=None)
             resize_factor = side / output_side        
             cam = ex.camera.copy()
-            cam.intrinsic_matrix[:2, 2] -= np.array([min_x, min_y])
+            cam.intrinsic_matrix[:2, 2] -= box[:2]
             cam.intrinsic_matrix[:2] /=  resize_factor
             metric_world_coords = ex.world_coords
             camcoords = cam.world_to_camera(metric_world_coords)

@@ -13,6 +13,7 @@ import spacepy
 import sys
 import json
 from tqdm import tqdm
+import argparse
 
 
 def load_coords(path):
@@ -57,7 +58,52 @@ def upper_plot_skeleton(axis, p, color='r'):
     plt.plot([center_shoulder[0], p[7, 0]], [center_shoulder[1], p[7, 1]], [center_shoulder[2], p[7, 2]], color)           
         
 
-def adjust_bbox(x0, y0, w0, h0, upbb=False): 
+def adjust_bbox(x0, y0, w0, h0, upbb=False, mode=0): 
+    if upbb:
+        h0 *= 0.5
+    
+    if mode in [0, 1, 2]:    
+        if w0 < h0:
+            w1, h1 = h0, h0
+            x1, y1 = x0 - (h0 - w0) / 2., y0
+        else:
+            w1, h1 = w0, w0  
+            x1, y1 = x0, y0 - (w0 - h0) / 2.
+        return x1, y1, w1, h1
+    elif mode == 3:
+        if w0 < h0:
+            w1, h1 = w0, w0
+            x1, y1 = x0, y0 + (h0 - w0) * 0.1
+        else:
+            w1, h1 = h0, h0  
+            x1, y1 = x0 + (w0 - h0) * 0.5, y0
+        return x1, y1, w1, h1
+    else:
+        print("Error. Unsupported bbox squarization mode. Only 0, 1, 2, 3 are supported!")
+        exit()
+
+
+def get_crop(img0, x0, y0, w0, h0, zeropadding=False):
+    x1 = x0 + w0
+    y1 = y0 + h0
+    x0 = max(x0, 0)
+    y0 = max(y0, 0)
+    x1 = min(x1, img0.width)
+    y1 = min(y1, img0.height)
+    crop_img = np.array(img0)[int(y0):int(y1), int(x0):int(x1)]
+    if zeropadding:
+        crop_h, crop_w, _ = crop_img.shape
+        crop_l = max(crop_h, crop_w)
+        zp_crop_img = np.zeros([crop_l, crop_l, 3], dtype=crop_img.dtype)
+        h_offset = int((crop_l - crop_h) / 2)
+        w_offset = int((crop_l - crop_w) / 2)
+        zp_crop_img[h_offset: h_offset + crop_h, w_offset: w_offset + crop_w] = crop_img
+        return zp_crop_img
+    else:
+        return crop_img
+
+    
+def adjust_bbox_and_get_crop(img0, x0, y0, w0, h0, upbb=False, mode=0): 
     if upbb:
         h0 *= 0.5
     if w0 < h0:
@@ -65,16 +111,57 @@ def adjust_bbox(x0, y0, w0, h0, upbb=False):
         x1, y1 = x0 - (h0 - w0) / 2., y0
     else:
         w1, h1 = w0, w0  
-        x1, y1 = x0, y0 #- (w0 - h0) / 2.
-    return x1, y1, w1, h1
+        x1, y1 = x0, y0 - (w0 - h0) / 2.    
+    
+    x1_max = x1 + w1
+    y1_max = y1 + h1
+    x1 = max(x1, 0)
+    y1 = max(y1, 0)
+    x1_max = min(x1_max, img0.width)
+    y1_max = min(y1_max, img0.height)  
+    w1 = x1_max - x1
+    h1 = y1_max - y1
+    
+    if mode in [0, 1]:    
+        crop_img = np.array(img0)[int(y1):int(y1_max), int(x1):int(x1_max)]
+        return crop_img, (x1, y1, w1, h1)
+    elif mode == 2:
+        crop_img = np.array(img0)[int(y1):int(y1_max), int(x1):int(x1_max)]
+        crop_h, crop_w, _ = crop_img.shape
+        crop_l = max(crop_h, crop_w)
+        zp_crop_img = np.zeros([crop_l, crop_l, 3], dtype=crop_img.dtype)
+        h_offset = int((crop_l - crop_h) / 2)
+        w_offset = int((crop_l - crop_w) / 2)
+        zp_crop_img[h_offset: h_offset + crop_h, w_offset: w_offset + crop_w] = crop_img
+        return zp_crop_img, (x1, y1, w1, h1)
+    elif mode == 3:
+        if w1 < h1:
+            w3, h3 = w1, w1
+            x3, y3 = x1, y1 + (h1 - w1) * 0.1
+        else:
+            w3, h3 = h1, h1  
+            x3, y3 = x1 + (w1 - h1) * 0.5, y1
+        x3_max = x3 + w3
+        y3_max = y3 + h3
+        crop_img = np.array(img0)[int(y3):int(y3_max), int(x3):int(x3_max)]
+        return crop_img, (x3, y3, w3, h3)
+    else:
+        print("Error. Unsupported bbox squarization mode. Only 0, 1, 2, 3 are supported!")
+        exit()
 
 
-def get_crop(img0, x0, y0, w0, h0):
-    if x0 < 0: x0 = 0
-    if y0 < 0: y0 = 0
-    if x0 + w0 > img0.width: w0 = img0.width - x0
-    if y0 + h0 > img0.height: h0 = img0.height - y0
-    return np.array(img0)[int(y0):int(y0 + h0), int(x0):int(x0 + w0)]
+def get_crop(img0, x0, y0, w0, h0, zeropadding=False):
+
+    if zeropadding:
+        crop_h, crop_w, _ = crop_img.shape
+        crop_l = max(crop_h, crop_w)
+        zp_crop_img = np.zeros([crop_l, crop_l, 3], dtype=crop_img.dtype)
+        h_offset = int((crop_l - crop_h) / 2)
+        w_offset = int((crop_l - crop_w) / 2)
+        zp_crop_img[h_offset: h_offset + crop_h, w_offset: w_offset + crop_w] = crop_img
+        return zp_crop_img
+    else:
+        return crop_img    
 
 
 def get_pred(img_crop, in_size, mdl, camera_rotate=None):
@@ -96,21 +183,24 @@ def prep_dir(target_path):
 
 # usage: python viz.py model_path1 .. model_pathN ('h36m' or input_path) outname
 #     or python viz.py model_path
-args = sys.argv[1:]
-if len(args) > 1 and args[0] == 'up':
-    upbbox = True
-    args = args[1:]
-else:
-    upbbox = False
 
-if len(args) == 1:
-    model_folders = args
-    outname = args[0].replace('/', '_')
-    input_path = 'all'
-else:
-    outname = args[-1]
-    input_path = args[-2]
-    model_folders = args[:-2]
+parser = argparse.ArgumentParser()
+parser.add_argument('-m', '--models', nargs='+', help="models for visualization, separated by space")
+parser.add_argument('-sq', "--squarization", type=int, default=0, help="method to make a square bbox from a rectangle bbox")
+parser.add_argument('-o', "--outname", type=str, help="output folder name")
+parser.add_argument('-i', "--input_path", type=str, default="all", help="input video name")
+parser.add_argument('-d', "--detector", action='store_true', default=True, help="display a square of a given number")
+parser.add_argument('-up', "--upperbbox", action='store_true', help="whether or not to use 0.5 height of fullbody box")
+args = parser.parse_args()
+print(args)
+
+use_detector = args.detector
+model_folders = args.models
+input_path = args.input_path
+outname = args.outname
+upbbox = args.upperbbox
+bbox_square_mode = args.squarization
+zeropadding = bbox_square_mode == 2
 
 exp_root = '/home/jovyan/runs/metrabs-exp/'
 data_root = '/home/jovyan/data/'
@@ -136,7 +226,6 @@ print("Loading model is done")
 deg = 5
 views = [(deg, deg - 90), (deg, deg), (90 - deg, deg - 90)]
 fsz = 2
-use_detector=True
 
 def plot_h36m(act_key=None, frame_step=25, data_path=data_root+'metrabs-processed/h36m/'):
     cam_param = exp_root + "visualize/human36m-camera-parameters/camera-parameters.json"
@@ -280,7 +369,7 @@ def plot_h36m(act_key=None, frame_step=25, data_path=data_root+'metrabs-processe
                 number_activity =  number_activity+1
 
 
-def plot_wild(input_dir, data_path=data_root, frame_step=2, frame_rate=24):
+def plot_wild(input_dir, data_path=data_root, frame_step=2, frame_rate=30):
     gt_path = ''
     if "inaki" in input_dir:
         data_path += 'inaki/'
@@ -288,7 +377,7 @@ def plot_wild(input_dir, data_path=data_root, frame_step=2, frame_rate=24):
         data_path += 'kapadia/'
         frame_step = 5
     if "sway" in input_dir:
-        frame_step = 5
+        frame_step = 1
         gt_path = os.path.join(data_path, input_dir, "wspace_poses3d.npy")
         world_coords = load_coords_sway(gt_path)[::frame_step]
         input_dir += '/images'
@@ -303,6 +392,8 @@ def plot_wild(input_dir, data_path=data_root, frame_step=2, frame_rate=24):
     prep_dir(output_path+'/'+input_dir)
     im_arr = []
     camR = np.array([[[1., 0, 0], [0, 0, 1.], [0, -1., 0]]])
+    npyfiles = np.zeros([nmdl, len(frames[::frame_step]), 8, 3])
+    
     for i_fr, frame in enumerate(tqdm(frames[::frame_step])):
         save_path = output_path + '/' + input_dir + '/' + frame
         #print(save_path, input_dir, frame)
@@ -313,13 +404,17 @@ def plot_wild(input_dir, data_path=data_root, frame_step=2, frame_rate=24):
             if len(bbox)==0:
                 continue
             x, y, wd, ht, conf = bbox[0]
-            x_sq, y_sq, wd_sq, ht_sq = adjust_bbox(x, y, wd, ht, upbbox)
-            crop_sq = get_crop(img, x_sq, y_sq, wd_sq, ht_sq)
+            # x_sq, y_sq, wd_sq, ht_sq = adjust_bbox(x, y, wd, ht, upbbox, mode=bbox_square_mode)
+            # crop_sq = get_crop(img, x_sq, y_sq, wd_sq, ht_sq, zeropadding=zeropadding)
+            crop_sq, crop_bbox = adjust_bbox_and_get_crop(img, x, y, wd, ht, upbb=upbbox, mode=bbox_square_mode)
+            x_sq, y_sq, wd_sq, ht_sq = crop_bbox
+
         else:
             crop_sq = np.array(img)
         pred_w_sq = []
         for i_m, model in enumerate(models):
             tt_sq, res_sq = get_pred(crop_sq, input_size[i_m], model, camR)
+            npyfiles[i_m, i_fr] = tt_sq.numpy()
             pred_w_sq.append(tt_sq)
 
         fig = plt.figure(figsize=(fsz * nmdl + fsz, fsz * len(views)))
@@ -377,9 +472,15 @@ def plot_wild(input_dir, data_path=data_root, frame_step=2, frame_rate=24):
         out.write(fr)
     out.release()
 
+    bbox_name = "upperbbox" if upbbox else "fullbbox"
+    for i_m in range(nmdl):
+        mdl_name = model_folders[i_m]
+        np.save(output_path + f'/{os.path.split(mdl_name)[1]}_{input_dir.replace("/images", "")}_{bbox_name}_sq{bbox_square_mode}.npy', npyfiles[i_m])
+    return
+
+
 if input_path in {'all', 'wild'}:
-    for v in ['', 'landscape', 'portrait', 'tight']:
-        plot_wild('sway4d004'+v)
+    plot_wild('sway4d004')
     for test_set in ['inaki', 'kapadia']:
         for subdir in sorted(os.listdir(os.path.join(data_root, test_set))):
             if subdir.startswith(test_set) and not os.path.isfile(os.path.join(data_root, test_set, subdir)):
