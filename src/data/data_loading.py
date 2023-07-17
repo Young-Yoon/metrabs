@@ -79,7 +79,7 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
     background_rng = util.new_rng(rng)
     geom_rng = util.new_rng(rng)
     partial_visi_rng = util.new_rng(rng)
-
+    upperbody_indices = [0, 9, 10, 11, 12, 13, 14, 15, 16]
     output_side = FLAGS.proc_side
     output_imshape = (output_side, output_side)
 
@@ -93,7 +93,7 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
     # resize bbox using keypoints in image coordinate 
     if FLAGS.upper_bbox:
         full_imgcoords = ex.camera.world_to_image(ex.world_coords)
-        upper_imgcoords = full_imgcoords[9:]
+        upper_imgcoords = full_imgcoords[upperbody_indices]
         box = boxlib.expand_with_margin(boxlib.bb_of_points(upper_imgcoords), [20, 80, 20, 20])
 
     partial_visi_prob = FLAGS.partial_visibility_prob
@@ -114,20 +114,27 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
         
     if FLAGS.upper_bbox:
         x1, y1, w1, h1 = boxlib.intersect(boxlib.expand_to_square(box), np.array([0, 0, w, h]))
+#         x1, y1, w1, h1 = box[:4]
         x1_max, y1_max = x1 + w1, y1 + h1
         side = max(w1, h1)
         
         if FLAGS.crop_mode in [0, 1]:    
             im = np.array(origsize_im)[int(y1):int(y1_max), int(x1):int(x1_max)]
+            xx = int(x1)
+            yy = int(y1)
+            hh, ww, _ = im.shape
         elif FLAGS.crop_mode == 2:
             crop_img = np.array(origsize_im)[int(y1):int(y1_max), int(x1):int(x1_max)]
-            crop_h, crop_w, _ = crop_img.shape
-            crop_l = max(crop_h, crop_w)
+            hh, ww, _ = crop_img.shape
+            crop_l = max(hh, ww)
             zp_crop_img = np.zeros([crop_l, crop_l, 3], dtype=crop_img.dtype)
-            h_offset = int((crop_l - crop_h) / 2)
-            w_offset = int((crop_l - crop_w) / 2)
-            zp_crop_img[h_offset: h_offset + crop_h, w_offset: w_offset + crop_w] = crop_img
+            yy = int((crop_l - hh) / 2)
+            xx = int((crop_l - ww) / 2)
+            zp_crop_img[yy: yy + hh, xx: xx + ww] = crop_img
             im = zp_crop_img
+            hh, ww = crop_l, crop_l
+            xx = int(x1) - xx
+            yy = int(y1) - yy
         elif FLAGS.crop_mode == 3:
             if w1 < h1:
                 w3, h3 = w1, w1
@@ -139,6 +146,9 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
             y3_max = y3 + h3
             side = max(w3, h3)
             im = np.array(origsize_im)[int(y3):int(y3_max), int(x3):int(x3_max)]
+            xx = int(x3)
+            yy = int(y3)
+            hh, ww, _ = im.shape
         else:
             print("Error. Unsupported bbox squarization mode. Only 0, 1, 2, 3 are supported!")
             exit()
@@ -147,8 +157,9 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
             im = cv2r.resize(im, dsize=(output_imshape[1], output_imshape[0]), interpolation=cv2.INTER_AREA, dst=None)
             resize_factor = side / output_side        
             cam = ex.camera.copy()
-            cam.intrinsic_matrix[:2, 2] -= box[:2]
-            cam.intrinsic_matrix[:2] /=  resize_factor
+            cam.intrinsic_matrix[:2, 2] -= np.array([xx, yy])
+            cam.intrinsic_matrix[0] /= (ww / output_side) 
+            cam.intrinsic_matrix[1] /= (hh / output_side) 
             metric_world_coords = ex.world_coords
             camcoords = cam.world_to_camera(metric_world_coords)
             imcoords = cam.world_to_image(metric_world_coords)
@@ -174,6 +185,16 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
             side = int(crop_h * pad_ratio / 2)
             im[:side, :] = 0
             im[-side:, :] = 0
+
+    if FLAGS.save_image_from_loader:
+        import matplotlib.pyplot as plt
+        plt.imshow(im)
+        for coord in imcoords[upperbody_indices]:
+            plt.plot(coord[0], coord[1], 'o', color="orange")
+        import os
+        os.makedirs("tmp", exist_ok=True)
+        plt.savefig("tmp/{}.jpg".format(np.random.randint(0, 1000)))
+        plt.clf()
     
     im = tfu.nhwc_to_std(im)
     im = improc.normalize01(im)

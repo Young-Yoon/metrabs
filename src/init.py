@@ -200,6 +200,7 @@ def get_parser():
     parser.add_argument('--loss2d-factor', type=float, default=0.1)
     parser.add_argument('--absloss-factor', type=float, default=1.0)
     parser.add_argument('--tdhp-to-mpii-shift-factor', type=float, default=0.2)
+    parser.add_argument('--save-image-from-loader', action=options.BoolAction, default=False)
 
     parser.add_argument('--bone-length-dataset', type=str)
 
