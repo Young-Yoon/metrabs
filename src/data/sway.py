@@ -93,6 +93,13 @@ def load_seq_param(seq_dir, seq_name, root_sway, use_kd):
     
 def get_examples(phase, pool, use_kd=True):
     result = []
+    if use_kd:
+        # From 'pelv,rhip,rkne,rank,lhip,lkne,lank,spin,neck,head,htop,lsho,lelb,lwri,rsho,relb,rwri’
+        # To   'rhip,rkne,rank,lhip,lkne,lank,tors,neck,head,htop,lsho,lelb,lwri,rsho,relb,rwri,pelv’
+        i_relevant_joints = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 0]
+    else:
+        i_relevant_joints = [2, 5, 8, 1, 4, 7, 9, 12, 15, 15, 16, 18, 20, 17, 19, 21, 0]
+
     root_sway = f'{paths.DATA_ROOT}/sway'
     seq_names, seq_folders, frame_step = get_seq_info(phase, root_sway, use_kd)
 
@@ -114,6 +121,7 @@ def get_examples(phase, pool, use_kd=True):
                 if fr_idx not in world_pose3d.keys():
                     continue
                 world_coords = world_pose3d[fr_idx]
+                world_coords = world_coords[i_relevant_joints, :]
                 bbox_fr = bbox[fr_idx]
             else:
                 world_coords = world_pose3d[i_frame]
@@ -156,7 +164,6 @@ def make_sway():
         'neck-tors-pelv-lhip-lkne-lank,pelv-rhip-rkne-rank')
     
     joint_info = ps3d.JointInfo(joint_names, edges)
-    i_relevant_joints = [2, 5, 8, 1, 4, 7, 9, 12, 15, 15, 16, 18, 20, 17, 19, 21, 0]
             
     with util.BoundedPool(None, 120) as pool:
         train_examples = get_examples('train', pool)
