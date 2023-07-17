@@ -16,6 +16,7 @@ import paths
 import util
 from options import FLAGS
 import tfu3d
+import cameralib
 
 
 def main():
@@ -72,11 +73,14 @@ def get_all_gt_poses(use_kd=True):
     all_image_relpaths = []
     root_sway = f'{paths.DATA_ROOT}/sway'
     seq_names, seq_folders, frame_step = data.sway.get_seq_info('test', root_sway, use_kd)
+    print('frame_step', frame_step)
 
-    if not use_kd:
+    if use_kd:
+        i_relevant_joints = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 0]
+    else:
         i_relevant_joints = [2, 5, 8, 1, 4, 7, 9, 12, 15, 15, 16, 18, 20, 17, 19, 21, 0]
-        if not FLAGS.root_last:
-            i_relevant_joints = [i_relevant_joints[-1]] + i_relevant_joints[:-1]
+    if not FLAGS.root_last:
+        i_relevant_joints = [i_relevant_joints[-1]] + i_relevant_joints[:-1]
 
     for seq_dir, seq_name in util.progressbar(itertools.product(seq_folders, seq_names)):
         load_success, params = data.sway.load_seq_param(seq_dir, seq_name, root_sway, use_kd)
@@ -93,17 +97,18 @@ def get_all_gt_poses(use_kd=True):
         if use_kd:
             fr_idx = [f'{i_frame+1:05d}' for i_frame in range(0, n_frames, frame_step) 
                       if f'{i_frame+1:05d}' in world_pose3d.keys() and (fixedCam or f'{i_frame+1:05d}' in intrinsics.keys())]
-            world_coords = np.array([world_pose3d[fr] for fr in fr_idx], dtype=np.single)
+            world_coords = np.array([world_pose3d[fr][i_relevant_joints] for fr in fr_idx], dtype=np.single)
             all_image_relpaths += [f'{image_relfolder}/{fr}.jpg' for fr in fr_idx]
         else:
             world_coords = world_pose3d[::frame_step]
-            world_coords = world_coords[:, i_relevant_joints, :].astype(np.single)
+            world_coords = world_coords[:, i_relevant_joints].astype(np.single)
             all_image_relpaths += [
                 f'{image_relfolder}/{i_frame+1:05d}.jpg'
                 for i_frame in range(0, n_frames, frame_step)]
         all_world_coords.append(world_coords)
 
     order = np.argsort(all_image_relpaths)
+    print(all_world_coords)
     all_world_coords = np.concatenate(all_world_coords, axis=0)[order]
     all_image_relpaths = np.array(all_image_relpaths)[order]
     return all_image_relpaths, all_world_coords
