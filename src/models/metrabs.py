@@ -21,12 +21,10 @@ class Metrabs(keras.Model):
         self.joint_names = tf.Variable(np.array(joint_info.names), trainable=False)
         self.joint_edges = tf.Variable(np.array(joint_info.stick_figure_edges), trainable=False)
         self.joint_info = joint_info
-        
         if FLAGS.output_upper_joints:
             n_raw_points = 8
         else:
             n_raw_points = 32 if FLAGS.transform_coords else joint_info.n_joints
-        
         self.heatmap_heads = MetrabsHeads(n_points=n_raw_points)
         if FLAGS.transform_coords:
             self.recombination_weights = tf.constant(np.load('32_to_122'))
@@ -116,6 +114,9 @@ class MetrabsTrainer(models.model_trainer.ModelTrainer):
         
         if FLAGS.output_upper_joints:
             joint_ids_3d= [[6], [5], [4], [1], [2], [3]]        
+
+        if FLAGS.output_upper_joints:
+            joint_ids_3d= [[6], [5], [4], [1], [2], [3]]
 
         def get_2dlike_joints(coords):
             return tf.stack(
