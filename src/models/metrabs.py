@@ -115,9 +115,6 @@ class MetrabsTrainer(models.model_trainer.ModelTrainer):
         if FLAGS.output_upper_joints:
             joint_ids_3d= [[6], [5], [4], [1], [2], [3]]        
 
-        if FLAGS.output_upper_joints:
-            joint_ids_3d= [[6], [5], [4], [1], [2], [3]]
-
         def get_2dlike_joints(coords):
             return tf.stack(
                 [tf.reduce_mean(tf.gather(coords, ids, axis=1)[..., :2], axis=1)
@@ -143,14 +140,14 @@ class MetrabsTrainer(models.model_trainer.ModelTrainer):
             coords3d_pred_rootrel = tf.math.divide_no_nan(
                 preds.coords3d_rel_pred - mean_pred, scale_pred) * scale_true
             coords3d_true_rootrel = inps.coords3d_true[:, joint_index_start:, :] - mean_true
-        else:
+        else:           
             coords3d_true_rootrel = tfu3d.center_relative_pose(
-                inps.coords3d_true[:, joint_index_start:, :], inps.joint_validity_mask[:, joint_index_start:, :], FLAGS.mean_relative)
+                inps.coords3d_true[:, joint_index_start:, :], inps.joint_validity_mask[:, joint_index_start:], FLAGS.mean_relative)
             coords3d_pred_rootrel = tfu3d.center_relative_pose(
-                preds.coords3d_rel_pred, inps.joint_validity_mask[:, joint_index_start:, :], FLAGS.mean_relative)
+                preds.coords3d_rel_pred, inps.joint_validity_mask[:, joint_index_start:], FLAGS.mean_relative)
 
         rootrel_absdiff = tf.abs((coords3d_true_rootrel - coords3d_pred_rootrel) / 1000)
-        losses.loss3d = tfu.reduce_mean_masked(rootrel_absdiff, inps.joint_validity_mask)
+        losses.loss3d = tfu.reduce_mean_masked(rootrel_absdiff, inps.joint_validity_mask[:, joint_index_start:])
 
         if FLAGS.scale_agnostic_loss:
             _, scale_true = tfu.mean_stdev_masked(
@@ -172,23 +169,30 @@ class MetrabsTrainer(models.model_trainer.ModelTrainer):
         losses.loss23d = tfu.reduce_mean_masked(
             tf.abs((inps.coords2d_true[:, joint_index_start:, :] - preds.coords2d_pred) * scale_2d),
             inps.joint_validity_mask[:, joint_index_start:])
-
-        preds.coords32d_pred_2d = models.util.align_2d_skeletons(
-            preds.coords32d_pred_2d, inps.coords2d_true_2d[:, joint_index_start:, :], inps.joint_validity_mask_2d[:, joint_index_start:])
-        losses.loss32d = tfu.reduce_mean_masked(
-            tf.abs((inps.coords2d_true_2d[:, joint_index_start:, :] - preds.coords32d_pred_2d) * scale_2d),
-            inps.joint_validity_mask_2d[:, joint_index_start:])
-        losses.loss22d = tfu.reduce_mean_masked(
-            tf.abs((inps.coords2d_true_2d[:, joint_index_start:, :] - preds.coords22d_pred_2d) * scale_2d),
-            inps.joint_validity_mask_2d[:, joint_index_start:])
+        
+#         we need to check 2d keypoints in MPII data set.
+#         pred coords32d shape :  (32, 6, 2)
+#         inps.coords2d_true_2d shape :  (32, 12, 2)
+#         inps.joint_validity_mask_2d shape :  (32, 12)
+    
+#         preds.coords32d_pred_2d = models.util.align_2d_skeletons(
+#             preds.coords32d_pred_2d, inps.coords2d_true_2d[:, joint_index_start:, :], inps.joint_validity_mask_2d[:, joint_index_start:])
+#         losses.loss32d = tfu.reduce_mean_masked(
+#             tf.abs((inps.coords2d_true_2d[:, joint_index_start:, :] - preds.coords32d_pred_2d) * scale_2d),
+#             inps.joint_validity_mask_2d[:, joint_index_start:])
+#         losses.loss22d = tfu.reduce_mean_masked(
+#             tf.abs((inps.coords2d_true_2d[:, joint_index_start:, :] - preds.coords22d_pred_2d) * scale_2d),
+#             inps.joint_validity_mask_2d[:, joint_index_start:])
 
         losses3d = [losses.loss3d, losses.loss23d, FLAGS.absloss_factor * losses.loss3d_abs]
-        losses2d = [losses.loss22d, losses.loss32d]
-        losses.loss = tf.add_n(losses3d) + FLAGS.loss2d_factor * tf.add_n(losses2d)
+#        losses2d = [losses.loss22d, losses.loss32d]
+#        losses.loss = tf.add_n(losses3d) + FLAGS.loss2d_factor * tf.add_n(losses2d)
+        losses.loss = tf.add_n(losses3d)     
         return losses
 
     def compute_metrics(self, inps, preds):
 #         return models.eval_metrics.compute_pose3d_metrics(inps, preds)
+    
         return models.eval_metrics.compute_pose3d_metrics_j8(inps, preds) if FLAGS.output_upper_joints else models.eval_metrics.compute_pose3d_metrics(inps, preds)
 
     def forward_test(self, inps):

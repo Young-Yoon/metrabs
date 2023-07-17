@@ -83,7 +83,7 @@ def compute_pose3d_metrics_j8(inps, preds):
 
     if 'coords2d_pred' in preds:
         metrics.mean_error_2d = tfu.reduce_mean_masked(
-            tf.norm(inps.coords2d_true - preds.coords2d_pred[:, :, :2], axis=-1),
+            tf.norm(inps.coords2d_true[:,9:,:] - preds.coords2d_pred[:, :, :2], axis=-1),
             inps.joint_validity_mask[:,9:])
 
     coords3d_pred_procrustes = tfu3d.rigid_align(
