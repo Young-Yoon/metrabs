@@ -66,6 +66,7 @@ def to_latex(numbers):
     return ', '.join([f'{x:.1f}' for x in numbers])
 
 
+@util.cache_result_on_disk(f'{paths.CACHE_DIR}/swaykd_gt_test.pkl', min_time="2023-06-27T11:30:43")
 def get_all_gt_poses(use_kd=True):
     all_world_coords = []
     all_image_relpaths = []
@@ -81,11 +82,17 @@ def get_all_gt_poses(use_kd=True):
         load_success, params = data.sway.load_seq_param(seq_dir, seq_name, root_sway, use_kd)
         if not load_success:
             continue
-        _, world_pose3d, _, n_frames = params
+        camera, world_pose3d, _, n_frames = params
+        if isinstance(camera, cameralib.Camera):
+            fixedCam = True
+        else:
+            intrinsics, _ = camera
+            fixedCam = False
 
         image_relfolder = f'sway/{seq_dir}/{seq_name}/images'
         if use_kd:
-            fr_idx = [f'{i_frame+1:05d}' for i_frame in range(0, n_frames, frame_step) if f'{i_frame+1:05d}' in world_pose3d.keys()]
+            fr_idx = [f'{i_frame+1:05d}' for i_frame in range(0, n_frames, frame_step) 
+                      if f'{i_frame+1:05d}' in world_pose3d.keys() and (fixedCam or f'{i_frame+1:05d}' in intrinsics.keys())]
             world_coords = np.array([world_pose3d[fr] for fr in fr_idx], dtype=np.single)
             all_image_relpaths += [f'{image_relfolder}/{fr}.jpg' for fr in fr_idx]
         else:
