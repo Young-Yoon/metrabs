@@ -166,28 +166,26 @@ class MetrabsTrainer(models.model_trainer.ModelTrainer):
             losses.loss3d_abs = tf.constant(0, tf.float32)
 
         scale_2d = 1 / FLAGS.proc_side * FLAGS.box_size_mm / 1000
+        
         losses.loss23d = tfu.reduce_mean_masked(
             tf.abs((inps.coords2d_true[:, joint_index_start:, :] - preds.coords2d_pred) * scale_2d),
             inps.joint_validity_mask[:, joint_index_start:])
         
-#         we need to check 2d keypoints in MPII data set.
-#         pred coords32d shape :  (32, 6, 2)
-#         inps.coords2d_true_2d shape :  (32, 12, 2)
-#         inps.joint_validity_mask_2d shape :  (32, 12)
+        joint_index_start = 6 if FLAGS.output_upper_joints else 0
     
-#         preds.coords32d_pred_2d = models.util.align_2d_skeletons(
-#             preds.coords32d_pred_2d, inps.coords2d_true_2d[:, joint_index_start:, :], inps.joint_validity_mask_2d[:, joint_index_start:])
-#         losses.loss32d = tfu.reduce_mean_masked(
-#             tf.abs((inps.coords2d_true_2d[:, joint_index_start:, :] - preds.coords32d_pred_2d) * scale_2d),
-#             inps.joint_validity_mask_2d[:, joint_index_start:])
-#         losses.loss22d = tfu.reduce_mean_masked(
-#             tf.abs((inps.coords2d_true_2d[:, joint_index_start:, :] - preds.coords22d_pred_2d) * scale_2d),
-#             inps.joint_validity_mask_2d[:, joint_index_start:])
+        preds.coords32d_pred_2d = models.util.align_2d_skeletons(
+            preds.coords32d_pred_2d, inps.coords2d_true_2d[:, joint_index_start:, :], inps.joint_validity_mask_2d[:, joint_index_start:])
+        losses.loss32d = tfu.reduce_mean_masked(
+            tf.abs((inps.coords2d_true_2d[:, joint_index_start:, :] - preds.coords32d_pred_2d) * scale_2d),
+            inps.joint_validity_mask_2d[:, joint_index_start:])
+        losses.loss22d = tfu.reduce_mean_masked(
+            tf.abs((inps.coords2d_true_2d[:, joint_index_start:, :] - preds.coords22d_pred_2d) * scale_2d),
+            inps.joint_validity_mask_2d[:, joint_index_start:])
 
         losses3d = [losses.loss3d, losses.loss23d, FLAGS.absloss_factor * losses.loss3d_abs]
-#        losses2d = [losses.loss22d, losses.loss32d]
-#        losses.loss = tf.add_n(losses3d) + FLAGS.loss2d_factor * tf.add_n(losses2d)
-        losses.loss = tf.add_n(losses3d)     
+        losses2d = [losses.loss22d, losses.loss32d]
+        losses.loss = tf.add_n(losses3d) + FLAGS.loss2d_factor * tf.add_n(losses2d)
+        
         return losses
 
     def compute_metrics(self, inps, preds):
