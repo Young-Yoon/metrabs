@@ -21,7 +21,12 @@ class Metrabs(keras.Model):
         self.joint_names = tf.Variable(np.array(joint_info.names), trainable=False)
         self.joint_edges = tf.Variable(np.array(joint_info.stick_figure_edges), trainable=False)
         self.joint_info = joint_info
-        n_raw_points = 32 if FLAGS.transform_coords else joint_info.n_joints
+        
+        if FLAGS.output_upper_joints:
+            n_raw_points = 8
+        else:
+            n_raw_points = 32 if FLAGS.transform_coords else joint_info.n_joints
+        
         self.heatmap_heads = MetrabsHeads(n_points=n_raw_points)
         if FLAGS.transform_coords:
             self.recombination_weights = tf.constant(np.load('32_to_122'))
@@ -30,11 +35,11 @@ class Metrabs(keras.Model):
         image, intrinsics = inp
         features = self.backbone(image, training=training)
         coords2d, coords3d = self.heatmap_heads(features, training=training)
-        coords3d_abs = tfu3d.reconstruct_absolute(coords2d, coords3d, intrinsics)
-        if FLAGS.transform_coords:
-            coords3d_abs = self.latent_points_to_joints(coords3d_abs)
+#         coords3d_abs = tfu3d.reconstruct_absolute(coords2d, coords3d, intrinsics)
+#         if FLAGS.transform_coords:
+#             coords3d_abs = self.latent_points_to_joints(coords3d_abs)
 
-        return coords3d_abs
+        return coords2d, coords3d
 
     @tf.function(input_signature=[
         tf.TensorSpec(shape=(None, None, None, 3), dtype=tf.float16),
@@ -108,6 +113,9 @@ class MetrabsTrainer(models.model_trainer.ModelTrainer):
         joint_ids_3d = [
             [self.joint_info.ids[n2] for n2 in self.joint_info.names if n2.startswith(n1)]
             for n1 in self.joint_info_2d.names]
+        
+        if FLAGS.output_upper_joints:
+            joint_ids_3d= [[6], [5], [4], [1], [2], [3]]        
 
         def get_2dlike_joints(coords):
             return tf.stack(
@@ -122,52 +130,56 @@ class MetrabsTrainer(models.model_trainer.ModelTrainer):
     def compute_losses(self, inps, preds):
         losses = AttrDict()
 
+
+        joint_index_start = 9 if FLAGS.output_upper_joints else 0 
+        
+        
         if FLAGS.scale_agnostic_loss:
             mean_true, scale_true = tfu.mean_stdev_masked(
-                inps.coords3d_true, inps.joint_validity_mask, items_axis=1, dimensions_axis=2)
+                inps.coords3d_true[:, joint_index_start:, :], inps.joint_validity_mask[:, joint_index_start:, :], items_axis=1, dimensions_axis=2)
             mean_pred, scale_pred = tfu.mean_stdev_masked(
-                preds.coords3d_rel_pred, inps.joint_validity_mask, items_axis=1, dimensions_axis=2)
+                preds.coords3d_rel_pred, inps.joint_validity_mask[:, joint_index_start:, :], items_axis=1, dimensions_axis=2)
             coords3d_pred_rootrel = tf.math.divide_no_nan(
                 preds.coords3d_rel_pred - mean_pred, scale_pred) * scale_true
-            coords3d_true_rootrel = inps.coords3d_true - mean_true
+            coords3d_true_rootrel = inps.coords3d_true[:, joint_index_start:, :] - mean_true
         else:
             coords3d_true_rootrel = tfu3d.center_relative_pose(
-                inps.coords3d_true, inps.joint_validity_mask, FLAGS.mean_relative)
+                inps.coords3d_true[:, joint_index_start:, :], inps.joint_validity_mask[:, joint_index_start:, :], FLAGS.mean_relative)
             coords3d_pred_rootrel = tfu3d.center_relative_pose(
-                preds.coords3d_rel_pred, inps.joint_validity_mask, FLAGS.mean_relative)
+                preds.coords3d_rel_pred, inps.joint_validity_mask[:, joint_index_start:, :], FLAGS.mean_relative)
 
         rootrel_absdiff = tf.abs((coords3d_true_rootrel - coords3d_pred_rootrel) / 1000)
         losses.loss3d = tfu.reduce_mean_masked(rootrel_absdiff, inps.joint_validity_mask)
 
         if FLAGS.scale_agnostic_loss:
             _, scale_true = tfu.mean_stdev_masked(
-                inps.coords3d_true, inps.joint_validity_mask, items_axis=1, dimensions_axis=2,
-                fixed_ref=tf.zeros_like(inps.coords3d_true))
+                inps.coords3d_true[:, joint_index_start:, :], inps.joint_validity_mask[:, joint_index_start:], items_axis=1, dimensions_axis=2,
+                fixed_ref=tf.zeros_like(inps.coords3d_true[:, joint_index_start:, :]))
             _, scale_pred = tfu.mean_stdev_masked(
-                preds.coords3d_pred_abs, inps.joint_validity_mask, items_axis=1, dimensions_axis=2,
-                fixed_ref=tf.zeros_like(inps.coords3d_true))
+                preds.coords3d_pred_abs, inps.joint_validity_mask[:, joint_index_start:], items_axis=1, dimensions_axis=2,
+                fixed_ref=tf.zeros_like(inps.coords3d_true[:, joint_index_start:, :]))
             preds.coords3d_pred_abs = tf.math.divide_no_nan(
                 preds.coords3d_pred_abs, scale_pred) * scale_true
 
         if self.global_step > 5000:
-            absdiff = tf.abs((inps.coords3d_true - preds.coords3d_pred_abs) / 1000)
-            losses.loss3d_abs = tfu.reduce_mean_masked(absdiff, inps.joint_validity_mask)
+            absdiff = tf.abs((inps.coords3d_true[:, joint_index_start:, :] - preds.coords3d_pred_abs) / 1000)
+            losses.loss3d_abs = tfu.reduce_mean_masked(absdiff, inps.joint_validity_mask[:, joint_index_start:])
         else:
             losses.loss3d_abs = tf.constant(0, tf.float32)
 
         scale_2d = 1 / FLAGS.proc_side * FLAGS.box_size_mm / 1000
         losses.loss23d = tfu.reduce_mean_masked(
-            tf.abs((inps.coords2d_true - preds.coords2d_pred) * scale_2d),
-            inps.joint_validity_mask)
+            tf.abs((inps.coords2d_true[:, joint_index_start:, :] - preds.coords2d_pred) * scale_2d),
+            inps.joint_validity_mask[:, joint_index_start:])
 
         preds.coords32d_pred_2d = models.util.align_2d_skeletons(
-            preds.coords32d_pred_2d, inps.coords2d_true_2d, inps.joint_validity_mask_2d)
+            preds.coords32d_pred_2d, inps.coords2d_true_2d[:, joint_index_start:, :], inps.joint_validity_mask_2d[:, joint_index_start:])
         losses.loss32d = tfu.reduce_mean_masked(
-            tf.abs((inps.coords2d_true_2d - preds.coords32d_pred_2d) * scale_2d),
-            inps.joint_validity_mask_2d)
+            tf.abs((inps.coords2d_true_2d[:, joint_index_start:, :] - preds.coords32d_pred_2d) * scale_2d),
+            inps.joint_validity_mask_2d[:, joint_index_start:])
         losses.loss22d = tfu.reduce_mean_masked(
-            tf.abs((inps.coords2d_true_2d - preds.coords22d_pred_2d) * scale_2d),
-            inps.joint_validity_mask_2d)
+            tf.abs((inps.coords2d_true_2d[:, joint_index_start:, :] - preds.coords22d_pred_2d) * scale_2d),
+            inps.joint_validity_mask_2d[:, joint_index_start:])
 
         losses3d = [losses.loss3d, losses.loss23d, FLAGS.absloss_factor * losses.loss3d_abs]
         losses2d = [losses.loss22d, losses.loss32d]
@@ -175,7 +187,8 @@ class MetrabsTrainer(models.model_trainer.ModelTrainer):
         return losses
 
     def compute_metrics(self, inps, preds):
-        return models.eval_metrics.compute_pose3d_metrics(inps, preds)
+#         return models.eval_metrics.compute_pose3d_metrics(inps, preds)
+        return models.eval_metrics.compute_pose3d_metrics_j8(inps, preds) if FLAGS.output_upper_joints else models.eval_metrics.compute_pose3d_metrics(inps, preds)
 
     def forward_test(self, inps):
         preds = AttrDict()
