@@ -297,7 +297,7 @@ def predict():
     
     coords3d_pred_world = tf.einsum(
         'nCc, njc->njC', r.rot_to_world, coords3d_pred) + tf.expand_dims(r.cam_loc, 1)
-    print(coords3d_pred.shape)
+    print('main.predict.coords3d_pred.shape=', coords3d_pred.shape)
     
 #     coords3d_pred_world = models.util.select_skeleton(
 #         coords3d_pred_world, model_joint_info, FLAGS.output_joints).numpy()
