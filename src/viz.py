@@ -202,20 +202,21 @@ exp_root = '/home/jovyan/runs/metrabs-exp/'
 data_root = '/home/jovyan/data/'
 
 #model_folder = exp_root + 'tconv1_in112/h36m_METRO_m3s03_rand1_1500/model/'
-model_folder = [exp_root + p + '/model/' for p in model_folders]
-for p in model_folder:
+model_paths = [exp_root + p + '/model/' for p in model_folders]
+for p in model_paths:
     if not os.path.isdir(p):
         raise OSError("model_folder not exist" + p)
 
-model_name = [p.split("/") for p in model_folder]
+model_name = [p.split("/") for p in model_paths]
 input_size = [112 if "112" in p else 160 if "160" in p else 128 if "128" in p else 256 for p in model_folders]
-print(model_name, input_size)
+model_type = ["etrabs" in p for p in model_folders]
+print(model_name, input_size, model_type)
 
 model_detector_folder = exp_root + "models/eff2s_y4/model_multi"
 model_d = tf.saved_model.load(model_detector_folder)
 det = model_d.detector
 
-models = [tf.saved_model.load(p) for p in model_folder]
+models = [tf.saved_model.load(p) for p in model_paths]
 nmdl = len(models)
 print("Loading model is done")
 
@@ -302,9 +303,9 @@ def plot_h36m(act_key=None, frame_step=25, data_path=data_root+'metrabs-processe
                     crop_gt = get_crop(img, x_gt, y_gt, wd_gt, ht_gt)
                     pred_w, pred_w_gt, pred_w_sq, gt_w = [], [], [], world_coords[i_frame]
                     for i_m, model in enumerate(models):
-                        tw, res = get_pred(crop, input_size[i_m], model, cam_rot)
-                        tw_bb, res_bb = get_pred(crop_gt, input_size[i_m], model, cam_rot)
-                        tw_sq, res_sq = get_pred(crop_sq, input_size[i_m], model, cam_rot)
+                        tw, res = get_pred(crop, input_size[i_m], model, cam_rot, metrabs=model_type[i_m])
+                        tw_bb, res_bb = get_pred(crop_gt, input_size[i_m], model, cam_rot, metrabs=model_type[i_m])
+                        tw_sq, res_sq = get_pred(crop_sq, input_size[i_m], model, cam_rot, metrabs=model_type[i_m])
                         pred_w.append(tw)
                         pred_w_gt.append(tw_bb)
                         pred_w_sq.append(tw_sq)
@@ -408,7 +409,7 @@ def plot_wild(input_dir, data_path=data_root, frame_step=2, frame_rate=30):
             crop_sq = np.array(img)
         pred_w_sq = []
         for i_m, model in enumerate(models):
-            tt_sq, res_sq = get_pred(crop_sq, input_size[i_m], model, camR)
+            tt_sq, res_sq = get_pred(crop_sq, input_size[i_m], model, camR, metrabs=model_type[i_m])
             npyfiles[i_m, i_fr] = tt_sq.numpy()
             pred_w_sq.append(tt_sq)
 
