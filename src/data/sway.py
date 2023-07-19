@@ -41,10 +41,11 @@ def get_seq_info(phase, root_sway, use_kd):
         with open(f'{root_sway}/dataset61769.txt', "r") as f:
             seq_names = [line.strip() for line in f.readlines()]
         parts = [0, 55561, 58648, 61734]   # [12000//100*p for p in (0, 90, 95, 100)]  # sway12k
+        parts = [0, 300, 600, 900]
         pid = {'train':0, 'validation':1, 'test':2}
         seq_names = seq_names[parts[pid[phase]]:parts[pid[phase]+1]]
         seq_folders = ['sway61769']
-        if phase in {'test'}:
+        if phase in {'tst'}:
             seq_folders += ['sway_test_variants/'+v for v in ('landscape', 'portrait', 'tight')]
     else:
         frame_step = 30 if phase in {'train'} else 64
@@ -148,18 +149,17 @@ def get_examples(phase, pool, use_kd=True):
             ex = ps3d.Pose3DExample(impath, world_coords, bbox=bbox_fr, camera=camera)
 
 #                 vis(os.path.join(paths.DATA_ROOT, impath), proj2d, bbox[i_frame])
-#                 new_image_relpath = impath.replace('sway/sway61769', 'sway_downscaled')
-#                 pool.apply_async(
-#                     make_efficient_example,
-#                     (ex, new_image_relpath),
-#                     callback=result.append)
-            result.append(ex)
+            new_image_relpath = f'sway_downscaled/{seq_dir}/{seq_name}/images/{i_frame+1:05d}.jpg'   #impath.replace('sway/sway61769', 'sway_downscaled')
+            pool.apply_async(make_efficient_example, (ex, new_image_relpath),
+                             callback=result.append)
+            # result.append(ex)
     return result
 
 
 #'sway4test.pkl': include sway_test_variants
 #'sway_kd12k.pkl': sway12k annotated by the pretrained metrabs
-@util.cache_result_on_disk(f'{paths.CACHE_DIR}/sway_kd.pkl', min_time="2023-06-27T11:30:43")
+#'sway_kd.pkl': sway annotated by the pretrained metrabs (50M frames: frame_step=5)
+@util.cache_result_on_disk(f'{paths.CACHE_DIR}/sway_kd_load.pkl', min_time="2023-06-27T11:30:43")
 def make_sway():
     joint_names = (
         'rhip,rkne,rank,lhip,lkne,lank,tors,neck,head,htop,'
