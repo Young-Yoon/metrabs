@@ -41,7 +41,7 @@ def get_seq_info(phase, root_sway, use_kd):
         with open(f'{root_sway}/dataset61769.txt', "r") as f:
             seq_names = [line.strip() for line in f.readlines()]
         parts = [0, 55561, 58648, 61734]   # [12000//100*p for p in (0, 90, 95, 100)]  # sway12k
-        #parts = [0, 300, 600, 900]
+        parts = [0, 3000, 3100, 3200]
         pid = {'train':0, 'validation':1, 'test':2}
         seq_names = seq_names[parts[pid[phase]]:parts[pid[phase]+1]]
         seq_folders = ['sway61769']
@@ -159,7 +159,7 @@ def get_examples(phase, pool, use_kd=True):
 #'sway4test.pkl': include sway_test_variants
 #'sway_kd12k.pkl': sway12k annotated by the pretrained metrabs
 #'sway_kd.pkl': sway annotated by the pretrained metrabs (50M frames: frame_step=5)
-@util.cache_result_on_disk(f'{paths.CACHE_DIR}/sway_kd_downsampled.pkl', min_time="2023-06-27T11:30:43")
+@util.cache_result_on_disk(f'{paths.CACHE_DIR}/sway_kd_downsampled1K.pkl', min_time="2023-06-27T11:30:43")
 def make_sway():
     joint_names = (
         'rhip,rkne,rank,lhip,lkne,lank,tors,neck,head,htop,'
