@@ -74,22 +74,40 @@ def plot_figures(image, tt, file_name, view='all'):
         ax.scatter(tt[:, 0], tt[:, 1], tt[:, 2])
         for i, j in skeleton:
             plt.plot([tt[i, 0], tt[j, 0]], [tt[i, 1], tt[j, 1]], [tt[i, 2], tt[j, 2]], 'r')
+        ax.set_title('3D View')
+        ax.set_xlabel('X Label')
+        ax.set_ylabel('Y Label')
+        ax.set_zlabel('Z Label')
+        ax.set_xlim3d(-500, 500)
+        ax.set_zlim3d(-1000, 1000)
+        ax.set_ylim3d(-500, 500)
     if view in ('front', 'all'):
         ax3 = fig.add_subplot(143, projection='3d')
         ax3.view_init(5, -85)
         ax3.scatter(tt[:, 0], tt[:, 1], tt[:, 2])
         for i, j in skeleton:
             plt.plot([tt[i, 0], tt[j, 0]], [tt[i, 1], tt[j, 1]], [tt[i, 2], tt[j, 2]], 'r')
+        ax3.set_title('Front View')
+        ax3.set_xlabel('X Label')
+        ax3.set_xlim3d(-500, 500)
+        ax3.set_zlim3d(-1000, 1000)
+        ax3.set_ylim3d(-500, 500)
     if view in ('side', 'all'):
         ax4 = fig.add_subplot(144, projection='3d')
         ax4.view_init(0, 0)
         ax4.scatter(tt[:, 0], tt[:, 1], tt[:, 2])
         for i, j in skeleton:
             plt.plot([tt[i, 0], tt[j, 0]], [tt[i, 1], tt[j, 1]], [tt[i, 2], tt[j, 2]], 'r')
+        ax4.set_title('Side View')
+        ax4.set_ylabel('Y Label')
+        ax4.set_xlim3d(-500, 500)
+        ax4.set_zlim3d(-1000, 1000)
+        ax4.set_ylim3d(-500, 500)
     plt.tight_layout()
     plt.savefig(file_name+ ".png")
     plt.clf()
     plt.close('all')
+
 
 def main():
     args = get_args()
