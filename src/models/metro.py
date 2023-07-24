@@ -57,9 +57,16 @@ class Head3D(keras.layers.Layer):
 
     def call(self, inp, training=None):
         logits = self.conv_final(inp)
+        print("logits shape before :", logits.shape)
+
         current_format = 'b h w (d j)' if tfu.get_data_format() == 'NHWC' else 'b (d j) h w'
         logits = einops.rearrange(logits, f'{current_format} -> b h w d j', j=self.n_points)
+        
+        print("logits shape after :", logits.shape)
+
         coords_heatmap = tfu.soft_argmax(tf.cast(logits, tf.float32), axis=[2, 1, 3])
+        print("coords_heatmap shape  :", coords_heatmap.shape)
+
         return models.util.heatmap_to_metric(coords_heatmap, training)
 
 
