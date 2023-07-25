@@ -59,7 +59,7 @@ def build_backbone():
         backbone = getattr(backbones.mobilenet_v3, classname)(
             include_top=False, weights='imagenet' if FLAGS.init == 'pretrained' else None,
             alpha=FLAGS.mobilenet_alpha, minimalistic=FLAGS.backbone.endswith('mini'),
-            input_shape=(FLAGS.proc_side, FLAGS.proc_side, 3), layers=MyLayers(),
+            input_shape=(3, FLAGS.proc_side, FLAGS.proc_side), layers=MyLayers(),
             centered_stride=FLAGS.centered_stride, pooling=None)
         preproc_fn = mobilenet_preproc
     else:
