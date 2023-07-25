@@ -30,7 +30,8 @@ class Metrabs(keras.Model):
             self.recombination_weights = tf.constant(np.load('32_to_122'))
 
     def call(self, inp, training=None):
-        image, intrinsics = inp
+#        image, intrinsics = inp
+        image = inp
         features = self.backbone(image, training=training)
         coords2d, coords3d = self.heatmap_heads(features, training=training)
 #         coords3d_abs = tfu3d.reconstruct_absolute(coords2d, coords3d, intrinsics)
@@ -39,13 +40,15 @@ class Metrabs(keras.Model):
 
         return coords2d, coords3d
 
+    # @tf.function(input_signature=[
+    #     tf.TensorSpec(shape=(None, 3, None, None), dtype=tf.float16),
+    #     tf.TensorSpec(shape=(None, 3, 3), dtype=tf.float32)])
     @tf.function(input_signature=[
-        tf.TensorSpec(shape=(None, None, None, 3), dtype=tf.float16),
-        tf.TensorSpec(shape=(None, 3, 3), dtype=tf.float32)])
-    def predict_multi(self, image, intrinsic_matrix):
+        tf.TensorSpec(shape=(None, 3, None, None), dtype=tf.float16)])    
+    def predict_multi(self, image):
         # This function is needed to avoid having to go through Keras' __call__
         # in the exported SavedModel, which causes all kinds of problems.
-        return self.call((image, intrinsic_matrix), training=False)
+        return self.call(image, training=False)
 
     def latent_points_to_joints(self, points):
         return tfu3d.linear_combine_points(points, self.recombination_weights)
@@ -61,9 +64,14 @@ class MetrabsHeads(keras.layers.Layer):
     def call(self, inp, training=None):
         x = self.conv_final(inp)
         logits2d, logits3d = tf.split(x, self.n_outs, axis=tfu.channel_axis())
-        current_format = 'b h w (d j)' if tfu.get_data_format() == 'NHWC' else 'b (d j) h w'
-        logits3d = einops.rearrange(logits3d, f'{current_format} -> b h w d j', j=self.n_points)
-        coords3d = tfu.soft_argmax(tf.cast(logits3d, tf.float32), axis=[2, 1, 3])
+        # current_format = 'b h w (d j)' if tfu.get_data_format() == 'NHWC' else 'b (d j) h w'
+        # logits3d = einops.rearrange(logits3d, f'{current_format} -> b h w d j', j=self.n_points)
+        # coords3d = tfu.soft_argmax(tf.cast(logits3d, tf.float32), axis=[2, 1, 3])
+
+        current_format = 'b h w (d j)' if tfu.get_data_format() == 'NHWC' else 'b (j d) h w'
+        logits3d = einops.rearrange(logits3d, f'{current_format} -> b j d h w', j=self.n_points)
+        coords3d = tfu.soft_argmax(tf.cast(logits3d, tf.float32), axis=[4, 3, 2])
+
         coords3d_rel_pred = models.util.heatmap_to_metric(coords3d, training)
         coords2d = tfu.soft_argmax(tf.cast(logits2d, tf.float32), axis=tfu.image_axes()[::-1])
         coords2d_pred = models.util.heatmap_to_image(coords2d, training)
@@ -77,9 +85,10 @@ class MetrabsTrainer(models.model_trainer.ModelTrainer):
         self.joint_info = joint_info
         self.joint_info_2d = joint_info2d
         self.model = metrabs_model
-        inp = keras.Input(shape=(None, None, 3), dtype=tfu.get_dtype())
-        intr = keras.Input(shape=(3, 3), dtype=tf.float32)
-        self.model((inp, intr), training=False)
+        inp = keras.Input(shape=(3, None, None), dtype=tfu.get_dtype())
+#        intr = keras.Input(shape=(3, 3), dtype=tf.float32)
+#        self.model((inp, intr), training=False)
+        self.model(inp, training=False)
 
     def forward_train(self, inps, training):
         preds = AttrDict()
