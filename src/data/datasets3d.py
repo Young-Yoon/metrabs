@@ -42,8 +42,9 @@ class Pose3DDataset:
 class Pose3DExample:
     def __init__(
             self, image_path, world_coords, bbox, camera, *,
-            activity_name='unknown', scene_name='unknown', mask=None, univ_coords=None):
+            activity_name='unknown', scene_name='unknown', mask=None, univ_coords=None, image_numpy=None):
         self.image_path = image_path
+        self.image_numpy = image_numpy
         self.world_coords = world_coords
         self.univ_coords = univ_coords if univ_coords is not None else None
         self.bbox = np.asarray(bbox)

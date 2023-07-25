@@ -80,6 +80,22 @@ def make_efficient_example(
     new_ex = copy.deepcopy(ex)
     new_ex.bbox = reprojected_box
     new_ex.image_path = new_image_path
+    new_ex.image_numpy = imageio.imread(new_image_abspath)
+    feature = {'image_raw':tfu._bytes_feature(new_ex.image_numpy), 'bbox':tfu._float_feature(new_ex.bbox)}
+    serialized_ex = tf.train.Example(features=tf.train.Features(feature=feature)).SerializeToString()
+    ex_proto = tf.train.Example.FromString(serialized_ex)
+    feature_ds = tf.data.Dataset.from_tensor_slices((feature['image_raw'], feature['bbox']))
+    print(feature, serialized_ex, ex_proto, feature_ds)
+    def tf_serialize_ex()
+    def tf_generator():
+        for features in feature_ds:
+            yield serialize_ex(*features)
+    serialized_feature_ds = tf.data.Dataset.from_generator(tf_generator, output_types=tf.string, output_shapes=())
+    writer = tf.data.experimental.TFRecordWriter('test.tfrecord')
+    writer.write(serialized_feature_ds)
+    raw_ds = tf.data.TFRecordDataset(['test.tfrecord'])
+
+
     if is3d:
         new_ex.camera = new_camera
     else:
