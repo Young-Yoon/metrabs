@@ -29,12 +29,12 @@ class Metrabs(keras.Model):
             self.recombination_weights = tf.constant(np.load('32_to_122'))    
 
         if FLAGS.data_format == 'NCHW':    
-            self.input_shape =(None, 3, None, None)
+            self.input_shape_image =(None, 3, None, None)
         else:
-            self.input_shape =(None, None, None, 3)
+            self.input_shape_image =(None, None, None, 3)
 
         self.predict_multi.get_concrete_function(
-            tf.TensorSpec(shape=self.input_shape, dtype=tf.float32 if FLAGS.input_float32 else tf.float16))
+            tf.TensorSpec(shape=self.input_shape_image, dtype=tf.float32 if FLAGS.input_float32 else tf.float16))
 
     def call(self, inp, training=None):
         image = inp
