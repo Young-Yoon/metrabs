@@ -15,6 +15,9 @@ import cameralib
 import improc
 import util
 import io
+import tfu
+import tensorflow as tf
+
 
 @functools.lru_cache()
 def get_memory(shape):
@@ -81,19 +84,20 @@ def make_efficient_example(
     new_ex.bbox = reprojected_box
     new_ex.image_path = new_image_path
     new_ex.image_numpy = imageio.imread(new_image_abspath)
-    feature = {'image_raw':tfu._bytes_feature(new_ex.image_numpy), 'bbox':tfu._float_feature(new_ex.bbox)}
-    serialized_ex = tf.train.Example(features=tf.train.Features(feature=feature)).SerializeToString()
-    ex_proto = tf.train.Example.FromString(serialized_ex)
-    feature_ds = tf.data.Dataset.from_tensor_slices((feature['image_raw'], feature['bbox']))
-    print(feature, serialized_ex, ex_proto, feature_ds)
-    def tf_serialize_ex()
-    def tf_generator():
-        for features in feature_ds:
-            yield serialize_ex(*features)
-    serialized_feature_ds = tf.data.Dataset.from_generator(tf_generator, output_types=tf.string, output_shapes=())
-    writer = tf.data.experimental.TFRecordWriter('test.tfrecord')
-    writer.write(serialized_feature_ds)
-    raw_ds = tf.data.TFRecordDataset(['test.tfrecord'])
+
+    tffile = 'test.tfrecord'
+    with tf.io.TFRecordWriter(tffile) as writer:
+        writer.write(new_ex.serialize_ex())
+        new_ex.bbox=np.array([1])
+        writer.write(new_ex.serialize_ex())
+        
+    raw_ds = tf.data.TFRecordDataset([tffile])
+    ex = tf.train.Example()
+    for i, raw_record in enumerate(raw_ds.take(2)):
+        ex.ParseFromString(raw_record.numpy())
+        print(i, 'th \t', tfu.tf_example_to_tensor(ex))
+    
+    exit()
 
 
     if is3d:

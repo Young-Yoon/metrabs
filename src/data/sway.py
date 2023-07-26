@@ -41,7 +41,7 @@ def get_seq_info(phase, root_sway, use_kd):
         with open(f'{root_sway}/dataset61769.txt', "r") as f:
             seq_names = [line.strip() for line in f.readlines()]
         parts = [0, 55561, 58648, 61734]   # [12000//100*p for p in (0, 90, 95, 100)]  # sway12k
-        parts = [0, 3000, 3100, 3200]
+        parts = [0, 100, 110, 120]      # for a quick test
         pid = {'train':0, 'validation':1, 'test':2}
         seq_names = seq_names[parts[pid[phase]]:parts[pid[phase]+1]]
         seq_folders = ['sway61769']
@@ -150,16 +150,16 @@ def get_examples(phase, pool, use_kd=True):
 
 #                 vis(os.path.join(paths.DATA_ROOT, impath), proj2d, bbox[i_frame])
             new_image_relpath = f'sway_downscaled/{seq_dir}/{seq_name}/images/{i_frame+1:05d}.jpg'   #impath.replace('sway/sway61769', 'sway_downscaled')
-            pool.apply_async(make_efficient_example, (ex, new_image_relpath),
-                             callback=result.append)
-            # result.append(ex)
+
+            # pool.apply_async(make_efficient_example, (ex, new_image_relpath), callback=result.append)
+            result.append(make_efficient_example(ex, new_image_relpath))
     return result
 
 
 #'sway4test.pkl': include sway_test_variants
 #'sway_kd12k.pkl': sway12k annotated by the pretrained metrabs
 #'sway_kd.pkl': sway annotated by the pretrained metrabs (50M frames: frame_step=5)
-@util.cache_result_on_disk(f'{paths.CACHE_DIR}/sway_kd_downsampled1K.pkl', min_time="2023-06-27T11:30:43")
+@util.cache_result_on_disk(f'{paths.CACHE_DIR}/sway_kd_temp.pkl', min_time="2023-06-27T11:30:43")
 def make_sway():
     joint_names = (
         'rhip,rkne,rank,lhip,lkne,lank,tors,neck,head,htop,'

@@ -2,6 +2,8 @@ import functools
 import os.path
 
 import numpy as np
+import tensorflow as tf
+import tfu
 
 import data.joint_filtering
 import paths
@@ -42,9 +44,9 @@ class Pose3DDataset:
 class Pose3DExample:
     def __init__(
             self, image_path, world_coords, bbox, camera, *,
-            activity_name='unknown', scene_name='unknown', mask=None, univ_coords=None, image_numpy=None):
+            activity_name='unknown', scene_name='unknown', mask=None, univ_coords=None):
         self.image_path = image_path
-        self.image_numpy = image_numpy
+        self.image_numpy = None
         self.world_coords = world_coords
         self.univ_coords = univ_coords if univ_coords is not None else None
         self.bbox = np.asarray(bbox)
@@ -52,6 +54,15 @@ class Pose3DExample:
         self.activity_name = activity_name
         self.scene_name = scene_name
         self.mask = mask
+
+    def serialize_ex(self):
+        fn_none = lambda i, o: o if i is not None else None 
+        feature = {#'image_raw':fn_none(self.image_numpy, tfu._bytes_feature(self.image_numpy.tobytes())), 
+                   'world_coords_shape':fn_none(self.world_coords, tfu._int64_feature(self.world_coords.shape)),
+                   'world_coords':fn_none(self.world_coords, tfu._float_feature(self.world_coords.flatten().tolist())),
+                   'bbox':fn_none(self.bbox, tfu._float_feature(self.bbox.tolist()))
+                  }
+        return tf.train.Example(features=tf.train.Features(feature=feature)).SerializeToString()
 
 
 def make_h36m_incorrect_S9(*args, **kwargs):

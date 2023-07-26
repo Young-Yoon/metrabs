@@ -410,9 +410,20 @@ def _bytes_feature(value):
 
 def _float_feature(value):
     """Returns a float_list from a float / double."""
-    return tf.train.Feature(float_list=tf.train.FloatList(value=[value]))
+    return tf.train.Feature(float_list=tf.train.FloatList(value=value))
 
 
 def _int64_feature(value):
     """Returns an int64_list from a bool / enum / int / uint."""
-    return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
+    return tf.train.Feature(int64_list=tf.train.Int64List(value=value))
+
+
+def tf_example_to_tensor(ex):
+    output = {}
+    for key, feature in ex.features.feature.items():
+        kind = feature.WhichOneof('kind')
+        val = getattr(feature, kind).value
+        val = np.array(val)
+        val = tf.convert_to_tensor(val)
+        output[key] = val
+    return output
