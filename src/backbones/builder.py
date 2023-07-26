@@ -56,10 +56,16 @@ def build_backbone():
         arch = FLAGS.backbone
         arch = arch[:-4] if arch.endswith('mini') else arch
         classname = f'MobileNet{arch[len("mobilenet"):]}'
+
+        if FLAGS.data_format == 'NCHW':    
+            input_image_shape = (3, FLAGS.proc_side, FLAGS.proc_side)
+        else:
+            input_image_shape = (FLAGS.proc_side, FLAGS.proc_side, 3)
+            
         backbone = getattr(backbones.mobilenet_v3, classname)(
             include_top=False, weights='imagenet' if FLAGS.init == 'pretrained' else None,
             alpha=FLAGS.mobilenet_alpha, minimalistic=FLAGS.backbone.endswith('mini'),
-            input_shape=(FLAGS.proc_side, FLAGS.proc_side, 3), layers=MyLayers(),
+            input_shape=input_image_shape, layers=MyLayers(),
             centered_stride=FLAGS.centered_stride, pooling=None)
         preproc_fn = mobilenet_preproc
     else:

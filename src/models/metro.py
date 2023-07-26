@@ -30,9 +30,14 @@ class Metro(keras.Model):
                 np.load(
                     '/globalwork/sarandi/data/skeleton_conversion/'
                     'latent_to_all_32_singlestage.npy'))
-        self.predict_multi.get_concrete_function(
-            tf.TensorSpec(shape=(None, None, None, 3), dtype=tf.float32 if FLAGS.input_float32 else tf.float16))
 
+        if FLAGS.data_format == 'NCHW':    
+            self.input_shape_image =(None, 3, None, None)
+        else:
+            self.input_shape_image =(None, None, None, 3)
+
+        self.predict_multi.get_concrete_function(
+            tf.TensorSpec(shape=self.input_shape_image, dtype=tf.float32 if FLAGS.input_float32 else tf.float16))
 
     def call(self, image, training=None):
         features = self.backbone(image, training=training)
@@ -57,9 +62,16 @@ class Head3D(keras.layers.Layer):
 
     def call(self, inp, training=None):
         logits = self.conv_final(inp)
-        current_format = 'b h w (d j)' if tfu.get_data_format() == 'NHWC' else 'b (d j) h w'
-        logits = einops.rearrange(logits, f'{current_format} -> b h w d j', j=self.n_points)
-        coords_heatmap = tfu.soft_argmax(tf.cast(logits, tf.float32), axis=[2, 1, 3])
+        
+        if FLAGS.data_format == 'NCHW':        
+            current_format = 'b h w (d j)' if tfu.get_data_format() == 'NHWC' else 'b (j d) h w'
+            logits = einops.rearrange(logits, f'{current_format} -> b j d h w', j=self.n_points)
+            coords_heatmap = tfu.soft_argmax(tf.cast(logits, tf.float32), axis=[4, 3, 2])
+        else:
+            current_format = 'b h w (d j)' if tfu.get_data_format() == 'NHWC' else 'b (d j) h w'
+            logits = einops.rearrange(logits, f'{current_format} -> b h w d j', j=self.n_points)
+            coords_heatmap = tfu.soft_argmax(tf.cast(logits, tf.float32), axis=[2, 1, 3])
+        
         return models.util.heatmap_to_metric(coords_heatmap, training)
 
 
@@ -70,7 +82,13 @@ class MetroTrainer(models.model_trainer.ModelTrainer):
         self.joint_info = joint_info
         self.joint_info_2d = joint_info2d
         self.model = metro_model
-        inp = keras.Input(shape=(None, None, 3), dtype=tfu.get_dtype())
+
+        if FLAGS.data_format == 'NCHW':        
+            inp = keras.Input(shape=(3, None, None), dtype=tfu.get_dtype())
+        else:
+            inp = keras.Input(shape=(None, None,3), dtype=tfu.get_dtype())
+
+
         self.model(inp, training=False)
 
     def forward_test(self, inps):

@@ -382,7 +382,10 @@ def restore_if_ckpt_available(
 
 def main():
     init.initialize()
-
+    if FLAGS.data_format == 'NCHW':
+        new_data_format = "channels_first"
+        tf.keras.backend.set_image_data_format(new_data_format)
+    
     if FLAGS.train:
         train()
     elif FLAGS.predict:
