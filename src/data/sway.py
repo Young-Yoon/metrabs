@@ -6,6 +6,8 @@ import data.datasets3d as ps3d
 import paths
 import util
 from data.preproc_for_efficiency import make_efficient_example
+import tfu
+import tensorflow as tf
 
 
 def vis(imagepath, projected_2d, bbox, keypoint_2d=None):
@@ -103,9 +105,13 @@ def get_examples(phase, pool, use_kd=True):
         i_relevant_joints = [2, 5, 8, 1, 4, 7, 9, 12, 15, 15, 16, 18, 20, 17, 19, 21, 0]    
     root_sway = f'{paths.DATA_ROOT}/sway'
     seq_names, seq_folders, frame_step = get_seq_info(phase, root_sway, use_kd)
+    i_seq, n_seq = 0, len(seq_names)*len(seq_folders)
+    n_tfrecord = 5
+    writers = [tf.io.TFRecordWriter(f'{paths.CACHE_DIR}/sway_train{i}.tfrecord') for i in range(n_tfrecord)]
 
     for seq_dir, seq_name in util.progressbar(itertools.product(seq_folders, seq_names)):
         load_success, params = load_seq_param(seq_dir, seq_name, root_sway, use_kd)
+        i_seq += 1
         if not load_success:
             continue
         camera, world_pose3d, bbox, n_frames = params
@@ -152,7 +158,23 @@ def get_examples(phase, pool, use_kd=True):
             new_image_relpath = f'sway_downscaled/{seq_dir}/{seq_name}/images/{i_frame+1:05d}.jpg'   #impath.replace('sway/sway61769', 'sway_downscaled')
 
             # pool.apply_async(make_efficient_example, (ex, new_image_relpath), callback=result.append)
-            result.append(make_efficient_example(ex, new_image_relpath))
+            new_ex = make_efficient_example(ex, new_image_relpath, writers[i_seq%n_tfrecord])    # serial: 5 sec/it
+            writers[i_seq % n_tfrecord].write(new_ex.serialize_ex())
+            result.append(new_ex)            
+            '''
+            tffile = 'test.tfrecord'
+            with tf.io.TFRecordWriter(tffile) as writer:
+                writer.write(new_ex.serialize_ex())
+                new_ex.bbox=np.array([1])
+                writer.write(new_ex.serialize_ex())
+
+            raw_ds = tf.data.TFRecordDataset([tffile])
+            ex = tf.train.Example()
+            for i, raw_record in enumerate(raw_ds.take(2)):
+                ex.ParseFromString(raw_record.numpy())
+                print(i, 'th \t', tfu.tf_example_to_tensor(ex))
+            exit()
+            '''
     return result
 
 

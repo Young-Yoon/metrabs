@@ -15,8 +15,6 @@ import cameralib
 import improc
 import util
 import io
-import tfu
-import tensorflow as tf
 
 
 @functools.lru_cache()
@@ -29,7 +27,7 @@ def get_memory(shape):
 
 def make_efficient_example(
         ex, new_image_path, further_expansion_factor=1,
-        image_adjustments_3dhp=False, min_time=None):
+        image_adjustments_3dhp=False, min_time=None, tf_writer=None):
     """Make example by storing the image in a cropped and resized version for efficient loading"""
 
     is3d = hasattr(ex, 'world_coords')
@@ -84,21 +82,6 @@ def make_efficient_example(
     new_ex.bbox = reprojected_box
     new_ex.image_path = new_image_path
     new_ex.image_numpy = imageio.imread(new_image_abspath)
-
-    tffile = 'test.tfrecord'
-    with tf.io.TFRecordWriter(tffile) as writer:
-        writer.write(new_ex.serialize_ex())
-        new_ex.bbox=np.array([1])
-        writer.write(new_ex.serialize_ex())
-        
-    raw_ds = tf.data.TFRecordDataset([tffile])
-    ex = tf.train.Example()
-    for i, raw_record in enumerate(raw_ds.take(2)):
-        ex.ParseFromString(raw_record.numpy())
-        print(i, 'th \t', tfu.tf_example_to_tensor(ex))
-    
-    exit()
-
 
     if is3d:
         new_ex.camera = new_camera

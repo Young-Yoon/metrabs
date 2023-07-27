@@ -85,6 +85,7 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
 
     # Load and reproject image
     image_path = util.ensure_absolute_path(ex.image_path)
+    # use-->
     origsize_im = improc.imread_jpeg(image_path)
     h, w, _ = origsize_im.shape
 
