@@ -8,6 +8,7 @@ import numpy as np
 import transforms3d
 
 import cv2r
+import tfu
 
 
 def point_transform(f):
@@ -69,7 +70,9 @@ class Camera:
         if (rot_world_to_cam is None) and (extrinsic_matrix is None):
             rot_world_to_cam = np.eye(3, dtype=np.float32)
 
-        if extrinsic_matrix is not None:
+        if extrinsic_matrix is not None and isinstance(extrinsic_matrix, tuple) and len(extrinsic_matrix) == 2:
+            self.R, self.t = extrinsic_matrix
+        elif extrinsic_matrix is not None:
             self.R = np.asarray(extrinsic_matrix[:3, :3], dtype=np.float32)
             self.t = -self.R.T @ extrinsic_matrix[:3, 3].astype(np.float32)
         else:
@@ -87,6 +90,22 @@ class Camera:
         if not np.allclose(self.intrinsic_matrix[2, :], [0, 0, 1]):
             raise Exception(f'Bottom row of intrinsic matrix must be (0,0,1), '
                             f'got {self.intrinsic_matrix[2, :]}.')
+
+    def serialize(self):
+        fn_none = lambda i, o: None if i is None else o
+        feature = {'R_shape':tfu._int64_feature(self.R.shape),
+                   'R':tfu._float_feature(self.R.flatten().tolist()),
+                   't_shape':tfu._int64_feature(self.t.shape),
+                   't':tfu._float_feature(self.t.flatten().tolist()),
+                   'intrinsic_shape':tfu._int64_feature(self.intrinsic_matrix.shape),
+                   'intrinsic':tfu._float_feature(self.intrinsic_matrix.flatten().tolist()),
+                   'world_up_shape':tfu._int64_feature(self.world_up.shape),
+                   'world_up':tfu._float_feature(self.world_up.flatten().tolist()),
+                  }
+        if self.distortion_coeffs is not None:
+            feature['distortion_shape'] = tfu._int64_feature(self.distortion_coeffs.shape)
+            feature['distortion'] = tfu._float_feature(self.distortion_coeffs.flatten().tolist())
+        return feature # tf.train.Example(features=tf.train.Features(feature=feature)).SerializeToString()
 
     def get_distortion_coeffs(self):
         if self.distortion_coeffs is None:
@@ -340,6 +359,13 @@ class Camera:
              [0, f, imshape[0] / 2],
              [0, 0, 1]], np.float32)
         return Camera(intrinsic_matrix=intrinsics)
+
+
+def init_from_feature(feature):
+    return Camera(intrinsic_matrix=feature['intrinsic'].reshape(feature['intrinsic_shape']),
+                  distortion_coeffs=feature['distortion'].reshape(feature['distortion']) if 'distortion' in feature.keys() else None,
+                  world_up=feature['world_up'].reshape(feature['world_up_shape']),
+                  extrinsic_matrix=(feature['R'].reshape(feature['R_shape']), feature['t'].reshape(feature['t_shape'])))
 
 
 def reproject_image_points(points, old_camera, new_camera):

@@ -43,7 +43,8 @@ def get_seq_info(phase, root_sway, use_kd):
         with open(f'{root_sway}/dataset61769.txt', "r") as f:
             seq_names = [line.strip() for line in f.readlines()]
         parts = [0, 55561, 58648, 61734]   # [12000//100*p for p in (0, 90, 95, 100)]  # sway12k
-        parts = [0, 100, 110, 120]      # for a quick test
+        parts = [0, 1000, 1100, 1200]      # for a quick test
+        parts = [0, 10, 40, 50]
         pid = {'train':0, 'validation':1, 'test':2}
         seq_names = seq_names[parts[pid[phase]]:parts[pid[phase]+1]]
         seq_folders = ['sway61769']
@@ -96,7 +97,7 @@ def load_seq_param(seq_dir, seq_name, root_sway, use_kd):
     return True, (camera, world_pose3d, bbox, n_frames)
 
 
-def get_examples(phase, pool, use_kd=True):
+def get_examples(phase, pool, use_kd=True, n_tfrecord=0):
     result = []
     if use_kd:
         # From 'pelv,rhip,rkne,rank,lhip,lkne,lank,spin,neck,head,htop,lsho,lelb,lwri,rsho,relb,rwri’ --> root-last
@@ -106,8 +107,10 @@ def get_examples(phase, pool, use_kd=True):
     root_sway = f'{paths.DATA_ROOT}/sway'
     seq_names, seq_folders, frame_step = get_seq_info(phase, root_sway, use_kd)
     i_seq, n_seq = 0, len(seq_names)*len(seq_folders)
-    n_tfrecord = 5
-    writers = [tf.io.TFRecordWriter(f'{paths.CACHE_DIR}/sway_train{i}.tfrecord') for i in range(n_tfrecord)]
+    # completed_frames, total_frames = 0, 0
+    fr_counter, jobs = 0, list()
+    if n_tfrecord > 0:
+        writers = [tf.io.TFRecordWriter(f'{paths.CACHE_DIR}/tfrecord/sway_{phase}_{i}.tfrecord') for i in range(n_tfrecord)]
 
     for seq_dir, seq_name in util.progressbar(itertools.product(seq_folders, seq_names)):
         load_success, params = load_seq_param(seq_dir, seq_name, root_sway, use_kd)
@@ -115,6 +118,7 @@ def get_examples(phase, pool, use_kd=True):
         if not load_success:
             continue
         camera, world_pose3d, bbox, n_frames = params
+        #total_frames += n_frames
         if isinstance(camera, cameralib.Camera):
             fixedCam = True
         else:
@@ -154,34 +158,41 @@ def get_examples(phase, pool, use_kd=True):
             impath = f'sway/{seq_dir}/{seq_name}/images/{i_frame+1:05d}.jpg'
             ex = ps3d.Pose3DExample(impath, world_coords, bbox=bbox_fr, camera=camera)
 
-#                 vis(os.path.join(paths.DATA_ROOT, impath), proj2d, bbox[i_frame])
+            # vis(os.path.join(paths.DATA_ROOT, impath), proj2d, bbox[i_frame])
             new_image_relpath = f'sway_downscaled/{seq_dir}/{seq_name}/images/{i_frame+1:05d}.jpg'   #impath.replace('sway/sway61769', 'sway_downscaled')
 
-            # pool.apply_async(make_efficient_example, (ex, new_image_relpath), callback=result.append)
-            new_ex = make_efficient_example(ex, new_image_relpath, writers[i_seq%n_tfrecord])    # serial: 5 sec/it
-            writers[i_seq % n_tfrecord].write(new_ex.serialize_ex())
-            result.append(new_ex)            
-            '''
-            tffile = 'test.tfrecord'
-            with tf.io.TFRecordWriter(tffile) as writer:
-                writer.write(new_ex.serialize_ex())
-                new_ex.bbox=np.array([1])
-                writer.write(new_ex.serialize_ex())
+            if n_tfrecord == 0:
+                pool.apply_async(make_efficient_example, (ex, new_image_relpath), callback=result.append)
+                #new_ex = make_efficient_example(ex, new_image_relpath)
+                #result.append(new_ex)
+            else:
+                jobs.append(pool.apply_async(make_efficient_example, (ex, new_image_relpath, True), callback=writers[i_seq%n_tfrecord].write))
+                #fr_counter += 1
+                #new_ex = make_efficient_example(ex, new_image_relpath, tf_format=True)
+                #writers[i_seq % n_tfrecord].write(new_ex)            
 
-            raw_ds = tf.data.TFRecordDataset([tffile])
-            ex = tf.train.Example()
-            for i, raw_record in enumerate(raw_ds.take(2)):
-                ex.ParseFromString(raw_record.numpy())
-                print(i, 'th \t', tfu.tf_example_to_tensor(ex))
-            exit()
-            '''
+    if n_tfrecord > 0:
+        result='tfrecord'
+        #pass
+        print('num of jobs:', len(jobs))
+        from datetime import datetime
+        import time
+        print(datetime.now())
+        while True:
+            pending = sum([not r.ready() or not r.successful() for r in jobs]) # if r is not None])
+            if pending == 0:
+                break
+            print(datetime.now(), ' => ', pending)
+            time.sleep(1)
+        for writer in writers:
+            writer.close()
     return result
 
 
 #'sway4test.pkl': include sway_test_variants
-#'sway_kd12k.pkl': sway12k annotated by the pretrained metrabs
+#'sway_kd_1k.pkl': 104M
 #'sway_kd.pkl': sway annotated by the pretrained metrabs (50M frames: frame_step=5)
-@util.cache_result_on_disk(f'{paths.CACHE_DIR}/sway_kd_temp.pkl', min_time="2023-06-27T11:30:43")
+@util.cache_result_on_disk(f'{paths.CACHE_DIR}/sway_kd_1k_tfrecord0.pkl', min_time="2023-06-27T11:30:43")
 def make_sway():
     joint_names = (
         'rhip,rkne,rank,lhip,lkne,lank,tors,neck,head,htop,'
@@ -200,9 +211,30 @@ def make_sway():
     joint_info = ps3d.JointInfo(joint_names, edges)
 
     with util.BoundedPool(None, 120) as pool:
-        train_examples = get_examples('train', pool)
+        train_examples = get_examples('train', pool, n_tfrecord=5)  #30)
         valid_examples = get_examples('validation', pool)
         test_examples = get_examples('test', pool)
+
+    if isinstance(train_examples, str):
+        train_examples = []
+        filenames = tf.data.Dataset.list_files(f'{paths.CACHE_DIR}/tfrecord/sway_train_*.tfrecord')
+        dataset = filenames.apply(
+            tf.data.experimental.parallel_interleave(
+            lambda filename: tf.data.TFRecordDataset(filename),
+            cycle_length=4))
+        #print(list(dataset.as_numpy_iterator()))
+        #exit()
+        # parsed_dataset = dataset.map(ps3d._parse_image_function)
+        # print(parsed_dataset)
+        # exit()
+        for i, raw_record in enumerate(dataset):
+            # feature = ps3d._parse_image_function(raw_record)            
+            ex = tf.train.Example()
+            ex.ParseFromString(raw_record.numpy())
+            feature = tfu.tf_example_to_feature(ex)
+            new_ex = ps3d.init_from_feature(feature)
+            print(i)
+            train_examples.append(new_ex)
 
     train_examples.sort(key=lambda x: x.image_path)
     valid_examples.sort(key=lambda x: x.image_path)

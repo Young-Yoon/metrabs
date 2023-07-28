@@ -17,7 +17,7 @@ import util
 def parallel_map_as_tf_dataset(
         fun, iterable, *, shuffle_before_each_epoch=False,
         extra_args=None, n_workers=10, rng=None, max_unconsumed=256, n_completed_items=0,
-        n_total_items=None, roundrobin_sizes=None):
+        n_total_items=None, roundrobin_sizes=None, use_tfrecord=False):
     """Maps `fun` to each element of `iterable` and wraps the resulting sequence as
     as a TensorFlow Dataset. Elements are processed by parallel workers using `multiprocessing`.
 
@@ -73,6 +73,20 @@ def parallel_map_as_tf_dataset(
         gen = parallel_map_as_generator(
             fun, items, extra_args, n_workers, rng=iter_rng, max_unconsumed=max_unconsumed)
 
+    '''
+    raw_ds = tf.data.TFRecordDataset([tffile])
+    ex = tf.train.Example()
+    for i, raw_record in enumerate(raw_ds.take(2)):
+        ex.ParseFromString(raw_record.numpy())
+        print(i, 'th \t', tfu.tf_example_to_feature(ex))
+    
+    filenames = tf.data.Dataset.list_files("/path/to/data/train*.tfrecords")
+    dataset = filenames.apply(
+    tf.data.experimental.parallel_interleave(
+        lambda filename: tf.data.TFRecordDataset(filename),
+        cycle_length=4))
+    '''    
+        
     ds = tf.data.Dataset.from_generator(gen, output_signature=output_signature)
 
     # Make the cardinality of the dataset known to TF.

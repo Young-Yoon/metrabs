@@ -4,6 +4,7 @@ import os.path
 import numpy as np
 import tensorflow as tf
 import tfu
+import imageio
 
 import data.joint_filtering
 import paths
@@ -11,6 +12,7 @@ import util
 from data.joint_info import JointInfo
 from options import logger
 from util import TEST, TRAIN, VALID
+import cameralib
 
 
 class Pose3DDataset:
@@ -44,9 +46,9 @@ class Pose3DDataset:
 class Pose3DExample:
     def __init__(
             self, image_path, world_coords, bbox, camera, *,
-            activity_name='unknown', scene_name='unknown', mask=None, univ_coords=None):
+            activity_name='unknown', scene_name='unknown', mask=None, univ_coords=None, image_numpy=None):
         self.image_path = image_path
-        self.image_numpy = None
+        self.image_numpy = image_numpy
         self.world_coords = world_coords
         self.univ_coords = univ_coords if univ_coords is not None else None
         self.bbox = np.asarray(bbox)
@@ -55,14 +57,75 @@ class Pose3DExample:
         self.scene_name = scene_name
         self.mask = mask
 
-    def serialize_ex(self):
-        fn_none = lambda i, o: o if i is not None else None 
-        feature = {#'image_raw':fn_none(self.image_numpy, tfu._bytes_feature(self.image_numpy.tobytes())), 
-                   'world_coords_shape':fn_none(self.world_coords, tfu._int64_feature(self.world_coords.shape)),
-                   'world_coords':fn_none(self.world_coords, tfu._float_feature(self.world_coords.flatten().tolist())),
-                   'bbox':fn_none(self.bbox, tfu._float_feature(self.bbox.tolist()))
-                  }
-        return tf.train.Example(features=tf.train.Features(feature=feature)).SerializeToString()
+    def serialize(self):
+        feature = {'impath':tfu._bytes_feature(bytes(self.image_path, 'utf-8')),
+                   'world_coords_shape':tfu._int64_feature(self.world_coords.shape),
+                   'world_coords':tfu._float_feature(self.world_coords.flatten().tolist()),
+                   'bbox':tfu._float_feature(self.bbox.tolist())}
+        if self.image_numpy is not None:
+            feature['image_shape'] = tfu._int64_feature(self.image_numpy.shape)
+            feature['image_numpy'] = tfu._bytes_feature(self.image_numpy.tobytes())
+            info = lambda x: (x.shape, x.size, len(x.tobytes()))
+            kk = info(self.image_numpy)
+            if kk[1] != kk[2]:
+                print(kk)
+                exit()
+            feature['check'] = tfu._int64_feature(self.image_numpy.shape)
+        cam_feature = self.camera.serialize()
+        #print(feature.keys(), cam_feature), exit()
+        return tf.train.Example(features=tf.train.Features(feature={**feature, **cam_feature})).SerializeToString()
+
+
+def _parse_image_function(example_proto):
+    pose3d_desc = {
+        'impath': tf.io.FixedLenFeature([], tf.string),
+        'world_coords_shape': tf.io.FixedLenFeature([], tf.int64),
+        'world_coords': tf.io.FixedLenFeature([], tf.float32),
+        'bbox': tf.io.FixedLenFeature([], tf.float32),
+        'image_shape': tf.io.FixedLenFeature([], tf.int64),
+        'image_numpy': tf.io.FixedLenFeature([], tf.string),
+        'R_shape': tf.io.FixedLenFeature([], tf.int64),
+        'R': tf.io.FixedLenFeature([], tf.float32),
+        't_shape': tf.io.FixedLenFeature([], tf.int64),
+        't': tf.io.FixedLenFeature([], tf.float32),
+        'intrinsic_shape': tf.io.FixedLenFeature([], tf.int64),
+        'intrinsic': tf.io.FixedLenFeature([], tf.float32),
+        'world_up_shape': tf.io.FixedLenFeature([], tf.int64),
+        'world_up': tf.io.FixedLenFeature([], tf.float32),
+        'distortion_shape': tf.io.FixedLenFeature([], tf.int64),
+        'distortion': tf.io.FixedLenFeature([], tf.float32)
+    }
+    return tf.io.parse_single_example(example_proto, pose3d_desc)
+#parsed_image_dataset = raw_image_dataset.map(_parse_image_function)
+#parsed_image_dataset
+
+
+def init_from_feature(feature):
+    print(feature.keys(), feature['impath'], feature['bbox'], feature['image_shape'])
+    if 'image_numpy' in feature.keys():
+        img_bytes = feature['image_numpy'][0]
+        shapes = feature['image_shape']
+        img_ = np.frombuffer(img_bytes, dtype=np.uint8)
+        print(shapes, len(img_bytes), shapes[0]*shapes[1]*shapes[2], feature['check'])
+        img = img_.reshape(shapes)
+        #exit()
+        #img = imageio.core.util.Array(np.reshape(np.frombuffer(img_bytes, dtype=np.uint8), newshape=feature['image_shape']))
+        '''
+        a = new_ex.image_numpy
+        img_bytes = a.tobytes()
+        c = np.frombuffer(img_bytes, dtype=np.uint8)
+        d = c.reshape(a.shape)
+        print(type(a), a.shape, len(img_bytes), len(c), np.array_equal(a.flatten(), c), type(c), d.shape, np.array_equal(a, d))
+        exit()
+        '''
+    else:
+        img = None
+    #print(type(img), feature['image_shape'], len(img))
+    #exit()
+    return Pose3DExample(feature['impath'][0].decode(),
+                         feature['world_coords'].reshape(feature['world_coords_shape']),
+                         feature['bbox'], cameralib.init_from_feature(feature), 
+                         image_numpy=img)
 
 
 def make_h36m_incorrect_S9(*args, **kwargs):

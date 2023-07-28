@@ -85,8 +85,8 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
 
     # Load and reproject image
     image_path = util.ensure_absolute_path(ex.image_path)
-    # use-->
-    origsize_im = improc.imread_jpeg(image_path)
+    origsize_im = improc.imread_jpeg(image_path) if ex.image_numpy is None else ex.image_numpy[0]
+    #print(len(ex.image_numpy))
     h, w, _ = origsize_im.shape
 
     box = ex.bbox

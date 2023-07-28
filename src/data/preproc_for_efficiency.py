@@ -26,8 +26,8 @@ def get_memory(shape):
 
 
 def make_efficient_example(
-        ex, new_image_path, further_expansion_factor=1,
-        image_adjustments_3dhp=False, min_time=None, tf_writer=None):
+        ex, new_image_path, tf_format=False, further_expansion_factor=1,
+        image_adjustments_3dhp=False, min_time=None):
     """Make example by storing the image in a cropped and resized version for efficient loading"""
 
     is3d = hasattr(ex, 'world_coords')
@@ -75,13 +75,25 @@ def make_efficient_example(
         else:
             new_im = (new_im ** (1 / 2.2) * 255).astype(np.uint8)
         util.ensure_path_exists(new_image_abspath)
-        imageio.imwrite(new_image_abspath, new_im, quality=95)
+        img_bytes = imageio.imwrite(new_image_abspath, new_im, quality=95)
+        print(type(img_bytes), len(img_bytes))
         assert improc.is_image_readable(new_image_abspath)
 
     new_ex = copy.deepcopy(ex)
     new_ex.bbox = reprojected_box
     new_ex.image_path = new_image_path
-    new_ex.image_numpy = imageio.imread(new_image_abspath)
+    if tf_format:
+        new_ex.image_numpy = imageio.imread(new_image_abspath)  # 11M vs 11G
+        #with open('files.txt', 'a') as f:
+        #    f.write(f'{new_ex.image_path}, {new_ex.image_numpy.shape}, {new_ex.image_numpy.size}\n')
+        '''
+        a = new_ex.image_numpy
+        img_bytes = a.tobytes()
+        c = np.frombuffer(img_bytes, dtype=np.uint8)
+        d = c.reshape(a.shape)
+        print(type(a), a.shape, len(img_bytes), len(c), np.array_equal(a.flatten(), c), type(c), d.shape, np.array_equal(a, d))
+        exit()
+        '''
 
     if is3d:
         new_ex.camera = new_camera
@@ -100,7 +112,7 @@ def make_efficient_example(
             new_ex.mask = get_connected_component_with_highest_iou(mask_reproj, reprojected_box)
         else:
             new_ex.mask = ex.mask
-    return new_ex
+    return new_ex if not tf_format else new_ex.serialize()
 
 
 def reproject_box(old_box, old_camera, new_camera, method='balanced'):

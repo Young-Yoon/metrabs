@@ -336,7 +336,7 @@ class BoundedPool:
                 callback(result)
             self.task_semaphore.release()
 
-        self.pool.apply_async(safe_fun, args=(f, args), callback=on_task_completion)
+        return self.pool.apply_async(safe_fun, args=(f, args), callback=on_task_completion)
 
     def close(self):
         self.pool.close()

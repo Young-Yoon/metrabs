@@ -320,7 +320,7 @@ def build_dataflow(
         load_fn, examples, shuffle_before_each_epoch=(learning_phase == tfu.TRAIN),
         extra_args=extra_args, n_workers=n_workers, rng=rng, max_unconsumed=batch_size * 2,
         n_completed_items=n_completed_steps * batch_size, n_total_items=n_total_items,
-        roundrobin_sizes=roundrobin_sizes)
+        roundrobin_sizes=roundrobin_sizes, use_tfrecord=(learning_phase == tfu.TRAIN))
     return dataset.batch(batch_size, drop_remainder=(learning_phase == tfu.TRAIN))
 
 

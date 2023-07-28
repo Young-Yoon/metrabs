@@ -418,12 +418,13 @@ def _int64_feature(value):
     return tf.train.Feature(int64_list=tf.train.Int64List(value=value))
 
 
-def tf_example_to_tensor(ex):
+def tf_example_to_feature(ex, tf_format=False):
     output = {}
     for key, feature in ex.features.feature.items():
         kind = feature.WhichOneof('kind')
         val = getattr(feature, kind).value
         val = np.array(val)
-        val = tf.convert_to_tensor(val)
+        if tf_format:
+            val = tf.convert_to_tensor(val)
         output[key] = val
     return output
