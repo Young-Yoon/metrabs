@@ -110,8 +110,9 @@ def init_from_feature(feature):
         img = None
     return Pose3DExample(feature['impath'].decode(),
                          feature['world_coords'].reshape(feature['world_coords_shape']),
-                         feature['bbox'], cameralib.init_from_feature(feature), 
-                         image_numpy=img)
+                         feature['bbox'], cameralib.init_from_feature(feature))
+                         #image_numpy=img)
+                         #None, None)
 
 
 def make_h36m_incorrect_S9(*args, **kwargs):

@@ -176,15 +176,16 @@ def get_examples(phase, pool, use_kd=True, n_tfrecord=0):
         result='tfrecord'
         #pass
         print('num of jobs:', len(jobs))
-        from datetime import datetime
-        import time
-        print(datetime.now())
-        while True:
-            pending = sum([not r.ready() or not r.successful() for r in jobs]) # if r is not None])
-            if pending == 0:
-                break
-            print(datetime.now(), ' => ', pending)
-            time.sleep(1)
+        #from datetime import datetime
+        #import time
+        #print(datetime.now())
+        while sum([not r.ready() for r in jobs]) > 0:
+            #pending = sum([not r.ready() for r in jobs]) # if r is not None])
+            #if pending == 0:
+            #    break
+            #print(datetime.now(), ' => ', pending)
+            #time.sleep(1)
+            pass
         for writer in writers:
             writer.close()
     return result
@@ -193,7 +194,7 @@ def get_examples(phase, pool, use_kd=True, n_tfrecord=0):
 #'sway4test.pkl': include sway_test_variants
 #'sway_kd_1k.pkl': 104M
 #'sway_kd.pkl': sway annotated by the pretrained metrabs (50M frames: frame_step=5)
-@util.cache_result_on_disk(f'{paths.CACHE_DIR}/sway_kd_1k_tfrecord0.pkl', min_time="2023-06-27T11:30:43")
+@util.cache_result_on_disk(f'{paths.CACHE_DIR}/sway_kd_1k_tfrecord.pkl', min_time="2023-06-27T11:30:43")
 def make_sway():
     joint_names = (
         'rhip,rkne,rank,lhip,lkne,lank,tors,neck,head,htop,'
@@ -217,6 +218,7 @@ def make_sway():
         test_examples = get_examples('test', pool)
 
     if isinstance(train_examples, str):
+        print('making train_examples from tfrecord')
         train_examples = []
         filenames = tf.data.Dataset.list_files(f'{paths.CACHE_DIR}/tfrecord/sway_train_*.tfrecord')
         dataset = filenames.apply(

@@ -74,20 +74,14 @@ def parallel_map_as_tf_dataset(
             fun, items, extra_args, n_workers, rng=iter_rng, max_unconsumed=max_unconsumed)
 
     '''
-    raw_ds = tf.data.TFRecordDataset([tffile])
-    ex = tf.train.Example()
-    for i, raw_record in enumerate(raw_ds.take(2)):
-        ex.ParseFromString(raw_record.numpy())
-        print(i, 'th \t', tfu.tf_example_to_feature(ex))
-    
     filenames = tf.data.Dataset.list_files("/path/to/data/train*.tfrecords")
     dataset = filenames.apply(
     tf.data.experimental.parallel_interleave(
         lambda filename: tf.data.TFRecordDataset(filename),
         cycle_length=4))
     '''    
-        
-    ds = tf.data.Dataset.from_generator(gen, output_signature=output_signature)
+
+    ds = tf.data.Dataset.from_generator(gen, output_signature=output_signature)    
 
     # Make the cardinality of the dataset known to TF.
     if n_total_items is not None:
