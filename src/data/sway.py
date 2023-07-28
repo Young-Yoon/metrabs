@@ -44,7 +44,8 @@ def get_seq_info(phase, root_sway, use_kd):
             seq_names = [line.strip() for line in f.readlines()]
         parts = [0, 55561, 58648, 61734]   # [12000//100*p for p in (0, 90, 95, 100)]  # sway12k
         parts = [0, 1000, 1100, 1200]      # for a quick test
-        parts = [0, 10, 40, 50]
+        # parts = [0, 10, 40, 50]          # for debugging
+        parts = [0, 200, 210, 220]
         pid = {'train':0, 'validation':1, 'test':2}
         seq_names = seq_names[parts[pid[phase]]:parts[pid[phase]+1]]
         seq_folders = ['sway61769']
@@ -211,7 +212,7 @@ def make_sway():
     joint_info = ps3d.JointInfo(joint_names, edges)
 
     with util.BoundedPool(None, 120) as pool:
-        train_examples = get_examples('train', pool, n_tfrecord=5)  #30)
+        train_examples = get_examples('train', pool, n_tfrecord=120)
         valid_examples = get_examples('validation', pool)
         test_examples = get_examples('test', pool)
 
@@ -222,19 +223,14 @@ def make_sway():
             tf.data.experimental.parallel_interleave(
             lambda filename: tf.data.TFRecordDataset(filename),
             cycle_length=4))
-        #print(list(dataset.as_numpy_iterator()))
-        #exit()
-        # parsed_dataset = dataset.map(ps3d._parse_image_function)
-        # print(parsed_dataset)
-        # exit()
         for i, raw_record in enumerate(dataset):
-            # feature = ps3d._parse_image_function(raw_record)            
+            if i%1000 == 0: print(i)
             ex = tf.train.Example()
             ex.ParseFromString(raw_record.numpy())
             feature = tfu.tf_example_to_feature(ex)
             new_ex = ps3d.init_from_feature(feature)
-            print(i)
             train_examples.append(new_ex)
+        print(len(train_examples))
 
     train_examples.sort(key=lambda x: x.image_path)
     valid_examples.sort(key=lambda x: x.image_path)

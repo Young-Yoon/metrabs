@@ -101,28 +101,13 @@ def _parse_image_function(example_proto):
 
 
 def init_from_feature(feature):
-    #print(feature.keys(), feature['impath'], feature['bbox'], feature['image_shape'], feature['image_numpy'][1:])
-    #feature = {k:v[0] for k, v in feature.items()}
     if 'image_numpy' in feature.keys():
         img_bytes = feature['image_numpy']
         shapes = feature['image_shape']
         img_ = np.frombuffer(img_bytes, dtype=np.uint8)
-        print(shapes, len(img_bytes), shapes[0]*shapes[1]*shapes[2], feature['check'])
         img = img_.reshape(shapes)
-        #exit()
-        #img = imageio.core.util.Array(np.reshape(np.frombuffer(img_bytes, dtype=np.uint8), newshape=feature['image_shape']))
-        '''
-        a = new_ex.image_numpy
-        img_bytes = a.tobytes()
-        c = np.frombuffer(img_bytes, dtype=np.uint8)
-        d = c.reshape(a.shape)
-        print(type(a), a.shape, len(img_bytes), len(c), np.array_equal(a.flatten(), c), type(c), d.shape, np.array_equal(a, d))
-        exit()
-        '''
     else:
         img = None
-    #print(type(img), feature['image_shape'], len(img))
-    #exit()
     return Pose3DExample(feature['impath'].decode(),
                          feature['world_coords'].reshape(feature['world_coords_shape']),
                          feature['bbox'], cameralib.init_from_feature(feature), 
