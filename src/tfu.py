@@ -423,7 +423,8 @@ def tf_example_to_feature(ex, tf_format=False):
     for key, feature in ex.features.feature.items():
         kind = feature.WhichOneof('kind')
         val = getattr(feature, kind).value
-        val = np.array(val)
+        size = len(val[0]) if kind == 'bytes_list' else len(val)
+        val = val[0] if kind == 'bytes_list' else np.array(val)
         if tf_format:
             val = tf.convert_to_tensor(val)
         output[key] = val
