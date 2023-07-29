@@ -73,7 +73,7 @@ def parallel_map_as_tf_dataset(
         gen = parallel_map_as_generator(
             fun, items, extra_args, n_workers, rng=iter_rng, max_unconsumed=max_unconsumed)
 
-    if False:  # and use_tfrecord:
+    if False: #use_tfrecord:
         import paths
         import data.datasets3d as ps3d
         filenames = tf.data.Dataset.list_files(f'{paths.CACHE_DIR}/tfrecord/sway_train_*.tfrecord')

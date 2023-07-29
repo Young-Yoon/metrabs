@@ -70,20 +70,25 @@ def train():
         tfu.TRAIN, batch_size=sum(roundrobin_sizes)//2 * n_repl,
         n_workers=FLAGS.workers,
         rng=util.new_rng(rng), n_completed_steps=n_completed_steps,
-        n_total_steps=FLAGS.training_steps, roundrobin_sizes=roundrobin_sizes)
-    print(type(data3d))
+        n_total_steps=FLAGS.training_steps, roundrobin_sizes=roundrobin_sizes, use_tfrecord=True)
+    print(type(data3d))  # <class 'tensorflow.python.data.ops.dataset_ops.BatchDataset'> 
     it = iter(data3d)
     im = next(it)['image']
-    print(type(im), im.shape)
+    print(type(im), im.shape)  # <class 'tensorflow.python.framework.ops.EagerTensor'> (16, 160, 160, 3)
 
     data_train = tf.data.Dataset.zip((data3d, data2d))
     it = iter(data_train)
     item = next(it)
-    print(item[0].keys(), item[1].keys())
+    print(item[0].keys(), item[0]['image'].shape, item[1].keys(), item[1]['image_2d'].shape)
+    # dict_keys(['image', 'intrinsics', 'image_path', 'coords3d_true', 'coords2d_true', 'rot_to_orig_cam', 'rot_to_world', 'cam_loc', 'joint_validity_mask', 'is_joint_in_fov']) (16, 160, 160, 3) 
+    # dict_keys(['image_2d', 'intrinsics_2d', 'image_path_2d', 'coords2d_true_2d', 'joint_validity_mask_2d', 'backward_matrix', 'is_joint_in_fov_2d']) (32, 160, 160, 3)
     data_train = data_train.map(lambda batch3d, batch2d: {**batch3d, **batch2d})
     it = iter(data_train)
     item = next(it)
     print(item.keys(), item['image'].shape)
+    # dict_keys(['image', 'intrinsics', 'image_path', 'coords3d_true', 'coords2d_true', 'rot_to_orig_cam', 'rot_to_world', 'cam_loc', 'joint_validity_mask', 'is_joint_in_fov', 'image_2d', 'intrinsics_2d', 'image_path_2d', 'coords2d_true_2d', 'joint_validity_mask_2d', 'backward_matrix', 'is_joint_in_fov_2d']) (16, 160, 160, 3)
+    exit()
+
     if not FLAGS.multi_gpu:
         data_train = data_train.apply(tf.data.experimental.prefetch_to_device('GPU:0', 2))
 
@@ -318,7 +323,7 @@ def predict():
 
 def build_dataflow(
         examples, load_fn, extra_args, learning_phase, batch_size, n_workers, rng=None,
-        n_completed_steps=0, n_total_steps=None, n_test_epochs=1, roundrobin_sizes=None):
+        n_completed_steps=0, n_total_steps=None, n_test_epochs=1, roundrobin_sizes=None, use_tfrecord=False):
     if learning_phase == tfu.TRAIN:
         n_total_items = int(n_total_steps * batch_size if n_total_steps is not None else None)
     elif learning_phase == tfu.VALID:
@@ -330,9 +335,9 @@ def build_dataflow(
         load_fn, examples, shuffle_before_each_epoch=(learning_phase == tfu.TRAIN),
         extra_args=extra_args, n_workers=n_workers, rng=rng, max_unconsumed=batch_size * 2,
         n_completed_items=n_completed_steps * batch_size, n_total_items=n_total_items,
-        roundrobin_sizes=roundrobin_sizes, use_tfrecord=(learning_phase == tfu.TRAIN))
+        roundrobin_sizes=roundrobin_sizes, use_tfrecord=use_tfrecord)
     dataset = dataset.batch(batch_size, drop_remainder=(learning_phase == tfu.TRAIN))
-    if False: # and learning_phase == tfu.TRAIN:
+    if False and use_tfrecord:
         dataset = dataset.map(load_fn, num_parallel_calls=tf.data.experimental.AUTOTUNE)
         dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
     return dataset
