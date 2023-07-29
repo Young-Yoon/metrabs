@@ -44,8 +44,8 @@ def get_seq_info(phase, root_sway, use_kd):
             seq_names = [line.strip() for line in f.readlines()]
         parts = [0, 55561, 58648, 61734]   # [12000//100*p for p in (0, 90, 95, 100)]  # sway12k
         parts = [0, 1000, 1100, 1200]      # for a quick test
-        # parts = [0, 10, 40, 50]          # for debugging
-        parts = [0, 200, 210, 220]
+        parts = [0, 10, 40, 50]          # for debugging
+        #parts = [0, 200, 210, 220]
         pid = {'train':0, 'validation':1, 'test':2}
         seq_names = seq_names[parts[pid[phase]]:parts[pid[phase]+1]]
         seq_folders = ['sway61769']
@@ -174,17 +174,8 @@ def get_examples(phase, pool, use_kd=True, n_tfrecord=0):
 
     if n_tfrecord > 0:
         result='tfrecord'
-        #pass
-        print('num of jobs:', len(jobs))
-        #from datetime import datetime
-        #import time
-        #print(datetime.now())
+        print(f'tfrecord won\'t be close until all {len(jobs)} jobs are done')
         while sum([not r.ready() for r in jobs]) > 0:
-            #pending = sum([not r.ready() for r in jobs]) # if r is not None])
-            #if pending == 0:
-            #    break
-            #print(datetime.now(), ' => ', pending)
-            #time.sleep(1)
             pass
         for writer in writers:
             writer.close()
@@ -194,7 +185,7 @@ def get_examples(phase, pool, use_kd=True, n_tfrecord=0):
 #'sway4test.pkl': include sway_test_variants
 #'sway_kd_1k.pkl': 104M
 #'sway_kd.pkl': sway annotated by the pretrained metrabs (50M frames: frame_step=5)
-@util.cache_result_on_disk(f'{paths.CACHE_DIR}/sway_kd_1k_tfrecord.pkl', min_time="2023-06-27T11:30:43")
+@util.cache_result_on_disk(f'{paths.CACHE_DIR}/sway_kd200_tfrecord.pkl', min_time="2023-06-27T11:30:43")
 def make_sway():
     joint_names = (
         'rhip,rkne,rank,lhip,lkne,lank,tors,neck,head,htop,'
@@ -218,21 +209,29 @@ def make_sway():
         test_examples = get_examples('test', pool)
 
     if isinstance(train_examples, str):
-        print('making train_examples from tfrecord')
+        from datetime import datetime
+        from tqdm import tqdm
+        print(datetime.now(), 'making train_examples from tfrecord')
         train_examples = []
         filenames = tf.data.Dataset.list_files(f'{paths.CACHE_DIR}/tfrecord/sway_train_*.tfrecord')
+
         dataset = filenames.apply(
             tf.data.experimental.parallel_interleave(
             lambda filename: tf.data.TFRecordDataset(filename),
             cycle_length=4))
-        for i, raw_record in enumerate(dataset):
-            if i%1000 == 0: print(i)
+        print(datetime.now(), 'load tfrecord using parallel_interleave with 4')
+
+        ds_size = sum(dataset.map(lambda x: 1).as_numpy_iterator())
+        print('num_dataset', ds_size)
+
+        for raw_record in tqdm(dataset): #, total=ds_size):
+            #print(type(raw_record)), exit()
             ex = tf.train.Example()
             ex.ParseFromString(raw_record.numpy())
             feature = tfu.tf_example_to_feature(ex)
             new_ex = ps3d.init_from_feature(feature)
             train_examples.append(new_ex)
-        print(len(train_examples))
+        #exit()
 
     train_examples.sort(key=lambda x: x.image_path)
     valid_examples.sort(key=lambda x: x.image_path)

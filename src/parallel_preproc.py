@@ -73,15 +73,52 @@ def parallel_map_as_tf_dataset(
         gen = parallel_map_as_generator(
             fun, items, extra_args, n_workers, rng=iter_rng, max_unconsumed=max_unconsumed)
 
-    '''
-    filenames = tf.data.Dataset.list_files("/path/to/data/train*.tfrecords")
-    dataset = filenames.apply(
-    tf.data.experimental.parallel_interleave(
-        lambda filename: tf.data.TFRecordDataset(filename),
-        cycle_length=4))
-    '''    
+    if False:  # and use_tfrecord:
+        import paths
+        import data.datasets3d as ps3d
+        filenames = tf.data.Dataset.list_files(f'{paths.CACHE_DIR}/tfrecord/sway_train_*.tfrecord')
+        ds = filenames.apply(
+            tf.data.experimental.parallel_interleave(
+            lambda filename: tf.data.TFRecordDataset(filename),
+            cycle_length=4))
 
-    ds = tf.data.Dataset.from_generator(gen, output_signature=output_signature)    
+        def parse_fun(raw_record):
+            ex = tf.train.Example()
+            ex.ParseFromString(raw_record.numpy())
+            feature = tfu.tf_example_to_feature(ex)
+            new_ex = ps3d.init_from_feature(feature)
+            result = fun(new_ex, *extra_args, util.new_rng(iter_rng))
+            keys = sorted(result.keys())
+            return (result[k] for k in keys)
+
+        def create_dict(cam_loc, co2d, co3d, image, impath, intrinsics, joint_in, mask, rot_cam, rot_world):
+            return {'cam_loc': cam_loc,
+                    'coords2d_true': co2d,
+                    'coords3d_true': co3d,
+                    'image': image,
+                    'image_path': impath,
+                    'intrinsics': intrinsics,
+                    'is_joint_in_fov': joint_in,
+                    'joint_validity_mask': mask,
+                    'rot_to_orig_cam': rot_cam,
+                    'rot_to_world': rot_world}
+            '''
+            return {'cam_loc': tf.convert_to_tensor(cam_loc), 
+                    'coords2d_true': tf.convert_to_tensor(co2d), 
+                    'coords3d_true': tf.convert_to_tensor(co3d), 
+                    'image': tf.convert_to_tensor(image),
+                    'image_path': tf.convert_to_tensor(impath),
+                    'intrinsics': tf.convert_to_tensor(intrinsics),
+                    'is_joint_in_fov': tf.convert_to_tensor(joint_in),
+                    'joint_validity_mask': tf.convert_to_tensor(mask),
+                    'rot_to_orig_cam': tf.convert_to_tensor(rot_cam),
+                    'rot_to_world': tf.convert_to_tensor(rot_world)}'''
+
+        ds.map(lambda x: tf.py_function(parse_fun, inp=[x], 
+            Tout=(tf.float32, tf.float32, tf.float32, tf.string, tf.string, tf.float32, tf.float32, tf.float32, tf.float32, tf.float32)),
+            num_parallel_calls=tf.data.experimental.AUTOTUNE).map(create_dict)
+    else:
+        ds = tf.data.Dataset.from_generator(gen, output_signature=output_signature)
 
     # Make the cardinality of the dataset known to TF.
     if n_total_items is not None:

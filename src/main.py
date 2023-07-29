@@ -71,9 +71,19 @@ def train():
         n_workers=FLAGS.workers,
         rng=util.new_rng(rng), n_completed_steps=n_completed_steps,
         n_total_steps=FLAGS.training_steps, roundrobin_sizes=roundrobin_sizes)
+    print(type(data3d))
+    it = iter(data3d)
+    im = next(it)['image']
+    print(type(im), im.shape)
 
     data_train = tf.data.Dataset.zip((data3d, data2d))
+    it = iter(data_train)
+    item = next(it)
+    print(item[0].keys(), item[1].keys())
     data_train = data_train.map(lambda batch3d, batch2d: {**batch3d, **batch2d})
+    it = iter(data_train)
+    item = next(it)
+    print(item.keys(), item['image'].shape)
     if not FLAGS.multi_gpu:
         data_train = data_train.apply(tf.data.experimental.prefetch_to_device('GPU:0', 2))
 
@@ -321,7 +331,11 @@ def build_dataflow(
         extra_args=extra_args, n_workers=n_workers, rng=rng, max_unconsumed=batch_size * 2,
         n_completed_items=n_completed_steps * batch_size, n_total_items=n_total_items,
         roundrobin_sizes=roundrobin_sizes, use_tfrecord=(learning_phase == tfu.TRAIN))
-    return dataset.batch(batch_size, drop_remainder=(learning_phase == tfu.TRAIN))
+    dataset = dataset.batch(batch_size, drop_remainder=(learning_phase == tfu.TRAIN))
+    if False: # and learning_phase == tfu.TRAIN:
+        dataset = dataset.map(load_fn, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+        dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+    return dataset
 
 
 def get_examples(dataset, learning_phase, flags):
