@@ -72,9 +72,9 @@ def train():
         rng=util.new_rng(rng), n_completed_steps=n_completed_steps,
         n_total_steps=FLAGS.training_steps, roundrobin_sizes=roundrobin_sizes, use_tfrecord=True)
     print(type(data3d))  # <class 'tensorflow.python.data.ops.dataset_ops.BatchDataset'> 
-    it = iter(data3d)
-    im = next(it)['image']
-    print(type(im), im.shape)  # <class 'tensorflow.python.framework.ops.EagerTensor'> (16, 160, 160, 3)
+    it3, it2 = iter(data3d), iter(data2d)
+    item3, item2 = next(it3), next(it2)
+    print(type(item3), type(item2)) #, im.shape)  # <class 'tensorflow.python.framework.ops.EagerTensor'> (16, 160, 160, 3)
 
     data_train = tf.data.Dataset.zip((data3d, data2d))
     it = iter(data_train)
@@ -87,7 +87,7 @@ def train():
     item = next(it)
     print(item.keys(), item['image'].shape)
     # dict_keys(['image', 'intrinsics', 'image_path', 'coords3d_true', 'coords2d_true', 'rot_to_orig_cam', 'rot_to_world', 'cam_loc', 'joint_validity_mask', 'is_joint_in_fov', 'image_2d', 'intrinsics_2d', 'image_path_2d', 'coords2d_true_2d', 'joint_validity_mask_2d', 'backward_matrix', 'is_joint_in_fov_2d']) (16, 160, 160, 3)
-    exit()
+    #exit()
 
     if not FLAGS.multi_gpu:
         data_train = data_train.apply(tf.data.experimental.prefetch_to_device('GPU:0', 2))

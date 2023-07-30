@@ -73,7 +73,7 @@ def parallel_map_as_tf_dataset(
         gen = parallel_map_as_generator(
             fun, items, extra_args, n_workers, rng=iter_rng, max_unconsumed=max_unconsumed)
 
-    if False: #use_tfrecord:
+    if use_tfrecord:
         import paths
         import data.datasets3d as ps3d
         filenames = tf.data.Dataset.list_files(f'{paths.CACHE_DIR}/tfrecord/sway_train_*.tfrecord')
@@ -89,19 +89,47 @@ def parallel_map_as_tf_dataset(
             new_ex = ps3d.init_from_feature(feature)
             result = fun(new_ex, *extra_args, util.new_rng(iter_rng))
             keys = sorted(result.keys())
-            return (result[k] for k in keys)
+            '''
+            print('result: ', keys, 'fun: ', fun)
+            for k in keys:
+                if isinstance(result[k], np.ndarray):
+                    print(k, result[k].shape, result[k].dtype, result[k].flatten()[0])
+                else:
+                    print(k, type(result[k]))
+            ---
+            cam_loc float32 0.0
+            coords2d_true float32 87.22508
+            coords3d_true float32 79.01264
+            image float32 0.72156864
+            image_path <class 'str'>
+            intrinsics float32 476.31747
+            is_joint_in_fov float32 1.0
+            joint_validity_mask bool True
+            rot_to_orig_cam float32 1.0
+            rot_to_world float32 -0.9978849
+            '''
+            res = [result[k] for k in keys]
+            # print(type(res))  #, [v[0] for v in res])
+            # print('At parse_fun', res[0].shape, res[9].shape, len(res))
+            return res
+
+        for i, it in enumerate(ds.take(1)):
+            res = parse_fun(it)
+            # print('parse_fun:', i, res)
 
         def create_dict(cam_loc, co2d, co3d, image, impath, intrinsics, joint_in, mask, rot_cam, rot_world):
-            return {'cam_loc': cam_loc,
-                    'coords2d_true': co2d,
-                    'coords3d_true': co3d,
-                    'image': image,
-                    'image_path': impath,
-                    'intrinsics': intrinsics,
-                    'is_joint_in_fov': joint_in,
-                    'joint_validity_mask': mask,
-                    'rot_to_orig_cam': rot_cam,
-                    'rot_to_world': rot_world}
+            # print('At create_dict', [x.dtype for x in [cam_loc, co2d, co3d, image, impath, intrinsics, joint_in, mask, rot_cam, rot_world]])
+            #[tf.float32, tf.float32, tf.float32, tf.float32, tf.string, tf.float32, tf.float32, tf.bool, tf.float32, tf.float32]
+            return dict(cam_loc=cam_loc,
+                    coords2d_true=co2d,
+                    coords3d_true=co3d,
+                    image=image,
+                    image_path=impath,
+                    intrinsics=intrinsics,
+                    is_joint_in_fov=joint_in,
+                    joint_validity_mask=mask,
+                    rot_to_orig_cam=rot_cam,
+                    rot_to_world=rot_world)
             '''
             return {'cam_loc': tf.convert_to_tensor(cam_loc), 
                     'coords2d_true': tf.convert_to_tensor(co2d), 
@@ -114,8 +142,9 @@ def parallel_map_as_tf_dataset(
                     'rot_to_orig_cam': tf.convert_to_tensor(rot_cam),
                     'rot_to_world': tf.convert_to_tensor(rot_world)}'''
 
-        ds.map(lambda x: tf.py_function(parse_fun, inp=[x], 
-            Tout=(tf.float32, tf.float32, tf.float32, tf.string, tf.string, tf.float32, tf.float32, tf.float32, tf.float32, tf.float32)),
+        # ds = tf.data.Dataset.from_generator(gen, output_signature=output_signature)
+        ds = ds.map(lambda x: tf.py_function(parse_fun, inp=[x], 
+            Tout=(tf.float32, tf.float32, tf.float32, tf.float32, tf.string, tf.float32, tf.float32, tf.bool, tf.float32, tf.float32)),
             num_parallel_calls=tf.data.experimental.AUTOTUNE).map(create_dict)
     else:
         ds = tf.data.Dataset.from_generator(gen, output_signature=output_signature)
