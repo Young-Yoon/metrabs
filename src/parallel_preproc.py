@@ -109,21 +109,30 @@ def parallel_map_as_tf_dataset(
             rot_to_world float32 -0.9978849
             '''
             res = [result[k] for k in keys]
-            # print(type(res))  #, [v[0] for v in res])
-            # print('At parse_fun', res[0].shape, res[9].shape, len(res))
+            # print('At parse_fun', [(i, type(v), len(v) if isinstance(v, str) else (v.dtype, v.shape)) for i, v in enumerate(res)])
+            # At parse_fun [(0, <class 'numpy.ndarray'>, (dtype('float32'), (3,))), (1, <class 'numpy.ndarray'>, (dtype('float32'), (17, 2))), (2, <class 'numpy.ndarray'>, (dtype('float32'), (17, 3))), (3, <class 'numpy.ndarray'>, (dtype('float32'), (160, 160, 3))), (4, <class 'str'>, 79), (5, <class 'numpy.ndarray'>, (dtype('float32'), (3, 3))), (6, <class 'numpy.ndarray'>, (dtype('float32'), (17,))), (7, <class 'numpy.ndarray'>, (dtype('bool'), (17,))), (8, <class 'numpy.ndarray'>, (dtype('float32'), (3, 3))), (9, <class 'numpy.ndarray'>, (dtype('float32'), (3, 3)))]
+            res = [tf.convert_to_tensor(r) for r in res]
+            # print('parse_fun:to_tensor', [(i, type(v), len(v) if isinstance(v, str) else (v.dtype, v.shape)) for i, v in enumerate(res)])
+            # parse_fun:to_tensor [(0, <class 'tensorflow.python.framework.ops.EagerTensor'>, (tf.float32, TensorShape([3]))), (1, <class 'tensorflow.python.framework.ops.EagerTensor'>, (tf.float32, TensorShape([17, 2]))), (2, <class 'tensorflow.python.framework.ops.EagerTensor'>, (tf.float32, TensorShape([17, 3]))), (3, <class 'tensorflow.python.framework.ops.EagerTensor'>, (tf.float32, TensorShape([160, 160, 3]))), (4, <class 'tensorflow.python.framework.ops.EagerTensor'>, (tf.string, TensorShape([]))), (5, <class 'tensorflow.python.framework.ops.EagerTensor'>, (tf.float32, TensorShape([3, 3]))), (6, <class 'tensorflow.python.framework.ops.EagerTensor'>, (tf.float32, TensorShape([17]))), (7, <class 'tensorflow.python.framework.ops.EagerTensor'>, (tf.bool, TensorShape([17]))), (8, <class 'tensorflow.python.framework.ops.EagerTensor'>, (tf.float32, TensorShape([3, 3]))), (9, <class 'tensorflow.python.framework.ops.EagerTensor'>, (tf.float32, TensorShape([3, 3])))]
+            # exit()
             return res
-
-        for i, it in enumerate(ds.take(1)):
-            res = parse_fun(it)
-            # print('parse_fun:', i, res)
+        
+        for raw_record in ds.take(1):
+            parse_sample = parse_fun(raw_record)
+            parse_signature = tf.nest.map_structure(tf.type_spec_from_value, parse_sample)
+            # print(parse_signature)
+            # [TensorSpec(shape=(3,), dtype=tf.float32, name=None), TensorSpec(shape=(17, 2), dtype=tf.float32, name=None), TensorSpec(shape=(17, 3), dtype=tf.float32, name=None), TensorSpec(shape=(160, 160, 3), dtype=tf.float32, name=None), TensorSpec(shape=(), dtype=tf.string, name=None), TensorSpec(shape=(3, 3), dtype=tf.float32, name=None), TensorSpec(shape=(17,), dtype=tf.float32, name=None), TensorSpec(shape=(17,), dtype=tf.bool, name=None), TensorSpec(shape=(3, 3), dtype=tf.float32, name=None), TensorSpec(shape=(3, 3), dtype=tf.float32, name=None)]
 
         def create_dict(cam_loc, co2d, co3d, image, impath, intrinsics, joint_in, mask, rot_cam, rot_world):
             # print('At create_dict', [x.dtype for x in [cam_loc, co2d, co3d, image, impath, intrinsics, joint_in, mask, rot_cam, rot_world]])
             #[tf.float32, tf.float32, tf.float32, tf.float32, tf.string, tf.float32, tf.float32, tf.bool, tf.float32, tf.float32]
+            print('At create_dict', [(type(x), x.shape, x.dtype) for x in [cam_loc, co2d, co3d, image, impath, intrinsics, joint_in, mask, rot_cam, rot_world]])
+            # At create_dict [(<class 'tensorflow.python.framework.ops.Tensor'>, TensorShape(None), tf.float32), (<class 'tensorflow.python.framework.ops.Tensor'>, TensorShape(None), tf.float32), (<class 'tensorflow.python.framework.ops.Tensor'>, TensorShape(None), tf.float32), (<class 'tensorflow.python.framework.ops.Tensor'>, TensorShape(None), tf.float32), (<class 'tensorflow.python.framework.ops.Tensor'>, TensorShape(None), tf.string), (<class 'tensorflow.python.framework.ops.Tensor'>, TensorShape(None), tf.float32), (<class 'tensorflow.python.framework.ops.Tensor'>, TensorShape(None), tf.float32), (<class 'tensorflow.python.framework.ops.Tensor'>, TensorShape(None), tf.bool), (<class 'tensorflow.python.framework.ops.Tensor'>, TensorShape(None), tf.float32), (<class 'tensorflow.python.framework.ops.Tensor'>, TensorShape(None), tf.float32)]
+            exit()
             return dict(cam_loc=cam_loc,
                     coords2d_true=co2d,
                     coords3d_true=co3d,
-                    image=image,
+                    image=tf.convert_to_tensor(image),
                     image_path=impath,
                     intrinsics=intrinsics,
                     is_joint_in_fov=joint_in,
@@ -144,8 +153,9 @@ def parallel_map_as_tf_dataset(
 
         # ds = tf.data.Dataset.from_generator(gen, output_signature=output_signature)
         ds = ds.map(lambda x: tf.py_function(parse_fun, inp=[x], 
-            Tout=(tf.float32, tf.float32, tf.float32, tf.float32, tf.string, tf.float32, tf.float32, tf.bool, tf.float32, tf.float32)),
-            num_parallel_calls=tf.data.experimental.AUTOTUNE).map(create_dict)
+            Tout=parse_signature), 
+            num_parallel_calls=tf.data.experimental.AUTOTUNE)  #(tf.float32, tf.float32, tf.float32, tf.float32, tf.string, tf.float32, tf.float32, tf.bool, tf.float32, tf.float32)),
+        ds = ds.map(create_dict)
     else:
         ds = tf.data.Dataset.from_generator(gen, output_signature=output_signature)
 

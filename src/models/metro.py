@@ -82,6 +82,11 @@ class MetroTrainer(models.model_trainer.ModelTrainer):
         image_both = tf.concat([inps.image, inps.image_2d], axis=0)
         coords3d_pred_both = self.model(image_both, training=training)
 
+        print([(k, inps[k]) for k in inps.keys()])
+        # [('cam_loc', <tf.Tensor 'inps_1:0' shape=<unknown> dtype=float32>), ('coords2d_true', <tf.Tensor 'inps_2:0' shape=<unknown> dtype=float32>), ('coords3d_true', <tf.Tensor 'inps_4:0' shape=<unknown> dtype=float32>), ('image', <tf.Tensor 'inps_5:0' shape=<unknown> dtype=float32>), ('image_path', <tf.Tensor 'inps_7:0' shape=<unknown> dtype=string>), ('intrinsics', <tf.Tensor 'inps_9:0' shape=<unknown> dtype=float32>), ('is_joint_in_fov', <tf.Tensor 'inps_11:0' shape=<unknown> dtype=float32>), ('joint_validity_mask', <tf.Tensor 'inps_13:0' shape=<unknown> dtype=bool>), ('rot_to_orig_cam', <tf.Tensor 'inps_15:0' shape=<unknown> dtype=float32>), ('rot_to_world', <tf.Tensor 'inps_16:0' shape=<unknown> dtype=float32>), 
+        # ('image_2d', <tf.Tensor 'inps_6:0' shape=(32, 160, 160, 3) dtype=float32>), ('intrinsics_2d', <tf.Tensor 'inps_10:0' shape=(32, 3, 3) dtype=float32>), ('image_path_2d', <tf.Tensor 'inps_8:0' shape=(32,) dtype=string>), ('coords2d_true_2d', <tf.Tensor 'inps_3:0' shape=(32, 12, 2) dtype=float32>), ('joint_validity_mask_2d', <tf.Tensor 'inps_14:0' shape=(32, 12) dtype=bool>), ('backward_matrix', <tf.Tensor 'inps:0' shape=(32, 3, 3) dtype=float32>), ('is_joint_in_fov_2d', <tf.Tensor 'inps_12:0' shape=(32, 12) dtype=bool>)]
+        print(inps.cam_loc, inps.cam_loc.get_shape(), inps.image.get_shape().as_list(), inps.image_2d.shape)
+        exit()
         batch_sizes = [t.shape.as_list()[0] for t in [inps.image, inps.image_2d]]
         preds.coords3d_rel_pred, preds.coords3d_pred_2d = tf.split(
             coords3d_pred_both, batch_sizes, axis=0)

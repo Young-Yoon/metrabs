@@ -74,7 +74,7 @@ def train():
     print(type(data3d))  # <class 'tensorflow.python.data.ops.dataset_ops.BatchDataset'> 
     it3, it2 = iter(data3d), iter(data2d)
     item3, item2 = next(it3), next(it2)
-    print(type(item3), type(item2)) #, im.shape)  # <class 'tensorflow.python.framework.ops.EagerTensor'> (16, 160, 160, 3)
+    print(type(item3), type(item2)) # <class 'dict'> <class 'dict'>
 
     data_train = tf.data.Dataset.zip((data3d, data2d))
     it = iter(data_train)
