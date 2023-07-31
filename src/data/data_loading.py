@@ -74,6 +74,14 @@ def full_bbox(ex, joint_info, learning_phase, output_side, output_imshape, origs
 
 
 def load_and_transform3d(ex, joint_info, learning_phase, rng):
+    with open('load_options.txt', 'a') as f:
+        f.write(', '.join([str(e) for e in [ex.image_path, learning_phase,
+          FLAGS.proc_side, FLAGS.upper_bbox, FLAGS.crop_mode, 
+          FLAGS.partial_visibility_prob, # util.random_partial_subbox()
+          FLAGS.geom_aug, FLAGS.shift_aug, 
+          FLAGS.occlude_aug_prob, # augmentation.appearance.augment_appearance(im)
+          FLAGS.color_aug, # augmentation.color.augment_color(im)
+          FLAGS.zero_padding]])+'\n')
     # Get the random number generators for the different augmentations to make it reproducibile
     appearance_rng = util.new_rng(rng)
     background_rng = util.new_rng(rng)
