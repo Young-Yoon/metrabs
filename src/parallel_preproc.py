@@ -120,15 +120,31 @@ def parallel_map_as_tf_dataset(
         for raw_record in ds.take(1):
             parse_sample = parse_fun(raw_record)
             parse_signature = tf.nest.map_structure(tf.type_spec_from_value, parse_sample)
-            # print(parse_signature)
-            # [TensorSpec(shape=(3,), dtype=tf.float32, name=None), TensorSpec(shape=(17, 2), dtype=tf.float32, name=None), TensorSpec(shape=(17, 3), dtype=tf.float32, name=None), TensorSpec(shape=(160, 160, 3), dtype=tf.float32, name=None), TensorSpec(shape=(), dtype=tf.string, name=None), TensorSpec(shape=(3, 3), dtype=tf.float32, name=None), TensorSpec(shape=(17,), dtype=tf.float32, name=None), TensorSpec(shape=(17,), dtype=tf.bool, name=None), TensorSpec(shape=(3, 3), dtype=tf.float32, name=None), TensorSpec(shape=(3, 3), dtype=tf.float32, name=None)]
+            # print(parse_signature)  # [TensorSpec(shape=(3,), dtype=tf.float32, name=None), TensorSpec(shape=(17, 2), dtype=tf.float32, name=None), TensorSpec(shape=(17, 3), dtype=tf.float32, name=None), TensorSpec(shape=(160, 160, 3), dtype=tf.float32, name=None), TensorSpec(shape=(), dtype=tf.string, name=None), TensorSpec(shape=(3, 3), dtype=tf.float32, name=None), TensorSpec(shape=(17,), dtype=tf.float32, name=None), TensorSpec(shape=(17,), dtype=tf.bool, name=None), TensorSpec(shape=(3, 3), dtype=tf.float32, name=None), TensorSpec(shape=(3, 3), dtype=tf.float32, name=None)]
+            parse_shape = [e.get_shape().as_list() for e in parse_sample]
+            print(parse_shape)  # [[3], [17, 2], [17, 3], [160, 160, 3], [], [3, 3], [17], [17], [3, 3], [3, 3]]
+
+        tf_parse_fun = lambda x: tf.py_function(parse_fun, inp=[x], Tout=tuple(parse_signature)) #(tf.float32, tf.float32, tf.float32, tf.float32, tf.string, tf.float32, tf.float32, tf.bool, tf.float32, tf.float32)),
+        for raw_record in ds.take(1):
+            tf_parse_sample = tf_parse_fun(raw_record)
+            # print(type(tf_parse_sample), [(type(e), e.shape, e.dtype)for e in tf_parse_sample])
+            # <class 'list'> [(<class 'tensorflow.python.framework.ops.EagerTensor'>, TensorShape([3]), tf.float32), (<class 'tensorflow.python.framework.ops.EagerTensor'>, TensorShape([17, 2]), tf.float32), (<class 'tensorflow.python.framework.ops.EagerTensor'>, TensorShape([17, 3]), tf.float32), (<class 'tensorflow.python.framework.ops.EagerTensor'>, TensorShape([160, 160, 3]), tf.float32), (<class 'tensorflow.python.framework.ops.EagerTensor'>, TensorShape([]), tf.string), (<class 'tensorflow.python.framework.ops.EagerTensor'>, TensorShape([3, 3]), tf.float32), (<class 'tensorflow.python.framework.ops.EagerTensor'>, TensorShape([17]), tf.float32), (<class 'tensorflow.python.framework.ops.EagerTensor'>, TensorShape([17]), tf.bool), (<class 'tensorflow.python.framework.ops.EagerTensor'>, TensorShape([3, 3]), tf.float32), (<class 'tensorflow.python.framework.ops.EagerTensor'>, TensorShape([3, 3]), tf.float32)]
+        #exit()
+
+        def ensure_shape(*args):
+            res = []
+            for v, s in zip(args, parse_shape):
+                print(s)
+                v.set_shape(s)
+                res.append(v)
+            # print(res) # [<tf.Tensor 'args_0:0' shape=(3,) dtype=float32>, <tf.Tensor 'args_1:0' shape=(17, 2) dtype=float32>, <tf.Tensor 'args_2:0' shape=(17, 3) dtype=float32>, <tf.Tensor 'args_3:0' shape=(160, 160, 3) dtype=float32>, <tf.Tensor 'args_4:0' shape=() dtype=string>, <tf.Tensor 'args_5:0' shape=(3, 3) dtype=float32>, <tf.Tensor 'args_6:0' shape=(17,) dtype=float32>, <tf.Tensor 'args_7:0' shape=(17,) dtype=bool>, <tf.Tensor 'args_8:0' shape=(3, 3) dtype=float32>, <tf.Tensor 'args_9:0' shape=(3, 3) dtype=float32>]
+            return tuple(res)
 
         def create_dict(cam_loc, co2d, co3d, image, impath, intrinsics, joint_in, mask, rot_cam, rot_world):
-            # print('At create_dict', [x.dtype for x in [cam_loc, co2d, co3d, image, impath, intrinsics, joint_in, mask, rot_cam, rot_world]])
-            #[tf.float32, tf.float32, tf.float32, tf.float32, tf.string, tf.float32, tf.float32, tf.bool, tf.float32, tf.float32]
-            print('At create_dict', [(type(x), x.shape, x.dtype) for x in [cam_loc, co2d, co3d, image, impath, intrinsics, joint_in, mask, rot_cam, rot_world]])
+            inps = (cam_loc, co2d, co3d, image, impath, intrinsics, joint_in, mask, rot_cam, rot_world)
+            print('At create_dict', [(type(x), x.shape, x.dtype, x.ref().deref()) for x in inps])
             # At create_dict [(<class 'tensorflow.python.framework.ops.Tensor'>, TensorShape(None), tf.float32), (<class 'tensorflow.python.framework.ops.Tensor'>, TensorShape(None), tf.float32), (<class 'tensorflow.python.framework.ops.Tensor'>, TensorShape(None), tf.float32), (<class 'tensorflow.python.framework.ops.Tensor'>, TensorShape(None), tf.float32), (<class 'tensorflow.python.framework.ops.Tensor'>, TensorShape(None), tf.string), (<class 'tensorflow.python.framework.ops.Tensor'>, TensorShape(None), tf.float32), (<class 'tensorflow.python.framework.ops.Tensor'>, TensorShape(None), tf.float32), (<class 'tensorflow.python.framework.ops.Tensor'>, TensorShape(None), tf.bool), (<class 'tensorflow.python.framework.ops.Tensor'>, TensorShape(None), tf.float32), (<class 'tensorflow.python.framework.ops.Tensor'>, TensorShape(None), tf.float32)]
-            exit()
+            #exit()
             return dict(cam_loc=cam_loc,
                     coords2d_true=co2d,
                     coords3d_true=co3d,
@@ -152,10 +168,14 @@ def parallel_map_as_tf_dataset(
                     'rot_to_world': tf.convert_to_tensor(rot_world)}'''
 
         # ds = tf.data.Dataset.from_generator(gen, output_signature=output_signature)
-        ds = ds.map(lambda x: tf.py_function(parse_fun, inp=[x], 
-            Tout=parse_signature), 
-            num_parallel_calls=tf.data.experimental.AUTOTUNE)  #(tf.float32, tf.float32, tf.float32, tf.float32, tf.string, tf.float32, tf.float32, tf.bool, tf.float32, tf.float32)),
+        print(ds)  # <ParallelInterleaveDataset element_spec=TensorSpec(shape=(), dtype=tf.string, name=None)>
+        ds = ds.map(tf_parse_fun, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+        print(ds)  # <ParallelMapDataset element_spec=(TensorSpec(shape=<unknown>, dtype=tf.float32, name=None), TensorSpec(shape=<unknown>, dtype=tf.float32, name=None), TensorSpec(shape=<unknown>, dtype=tf.float32, name=None), TensorSpec(shape=<unknown>, dtype=tf.float32, name=None), TensorSpec(shape=<unknown>, dtype=tf.string, name=None), TensorSpec(shape=<unknown>, dtype=tf.float32, name=None), TensorSpec(shape=<unknown>, dtype=tf.float32, name=None), TensorSpec(shape=<unknown>, dtype=tf.bool, name=None), TensorSpec(shape=<unknown>, dtype=tf.float32, name=None), TensorSpec(shape=<unknown>, dtype=tf.float32, name=None))>
+        ds = ds.map(ensure_shape)
+        print(ds)  # <MapDataset element_spec=(TensorSpec(shape=(3,), dtype=tf.float32, name=None), TensorSpec(shape=(17, 2), dtype=tf.float32, name=None), TensorSpec(shape=(17, 3), dtype=tf.float32, name=None), TensorSpec(shape=(160, 160, 3), dtype=tf.float32, name=None), TensorSpec(shape=(), dtype=tf.string, name=None), TensorSpec(shape=(3, 3), dtype=tf.float32, name=None), TensorSpec(shape=(17,), dtype=tf.float32, name=None), TensorSpec(shape=(17,), dtype=tf.bool, name=None), TensorSpec(shape=(3, 3), dtype=tf.float32, name=None), TensorSpec(shape=(3, 3), dtype=tf.float32, name=None))>
         ds = ds.map(create_dict)
+        print(ds)  # <MapDataset element_spec={'cam_loc': TensorSpec(shape=<unknown>, dtype=tf.float32, name=None), 'coords2d_true': TensorSpec(shape=<unknown>, dtype=tf.float32, name=None), 'coords3d_true': TensorSpec(shape=<unknown>, dtype=tf.float32, name=None), 'image': TensorSpec(shape=<unknown>, dtype=tf.float32, name=None), 'image_path': TensorSpec(shape=<unknown>, dtype=tf.string, name=None), 'intrinsics': TensorSpec(shape=<unknown>, dtype=tf.float32, name=None), 'is_joint_in_fov': TensorSpec(shape=<unknown>, dtype=tf.float32, name=None), 'joint_validity_mask': TensorSpec(shape=<unknown>, dtype=tf.bool, name=None), 'rot_to_orig_cam': TensorSpec(shape=<unknown>, dtype=tf.float32, name=None), 'rot_to_world': TensorSpec(shape=<unknown>, dtype=tf.float32, name=None)}>
+        #exit()
     else:
         ds = tf.data.Dataset.from_generator(gen, output_signature=output_signature)
 
