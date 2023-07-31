@@ -86,28 +86,9 @@ def parallel_map_as_tf_dataset(
             ex = tf.train.Example()
             ex.ParseFromString(raw_record.numpy())
             feature = tfu.tf_example_to_feature(ex)
-            new_ex = ps3d.init_from_feature(feature)
+            new_ex = ps3d.init_from_feature(feature, with_image=False)
             result = fun(new_ex, *extra_args, util.new_rng(iter_rng))
             keys = sorted(result.keys())
-            '''
-            print('result: ', keys, 'fun: ', fun)
-            for k in keys:
-                if isinstance(result[k], np.ndarray):
-                    print(k, result[k].shape, result[k].dtype, result[k].flatten()[0])
-                else:
-                    print(k, type(result[k]))
-            ---
-            cam_loc float32 0.0
-            coords2d_true float32 87.22508
-            coords3d_true float32 79.01264
-            image float32 0.72156864
-            image_path <class 'str'>
-            intrinsics float32 476.31747
-            is_joint_in_fov float32 1.0
-            joint_validity_mask bool True
-            rot_to_orig_cam float32 1.0
-            rot_to_world float32 -0.9978849
-            '''
             res = [result[k] for k in keys]
             # print('At parse_fun', [(i, type(v), len(v) if isinstance(v, str) else (v.dtype, v.shape)) for i, v in enumerate(res)])
             # At parse_fun [(0, <class 'numpy.ndarray'>, (dtype('float32'), (3,))), (1, <class 'numpy.ndarray'>, (dtype('float32'), (17, 2))), (2, <class 'numpy.ndarray'>, (dtype('float32'), (17, 3))), (3, <class 'numpy.ndarray'>, (dtype('float32'), (160, 160, 3))), (4, <class 'str'>, 79), (5, <class 'numpy.ndarray'>, (dtype('float32'), (3, 3))), (6, <class 'numpy.ndarray'>, (dtype('float32'), (17,))), (7, <class 'numpy.ndarray'>, (dtype('bool'), (17,))), (8, <class 'numpy.ndarray'>, (dtype('float32'), (3, 3))), (9, <class 'numpy.ndarray'>, (dtype('float32'), (3, 3)))]
@@ -146,28 +127,17 @@ def parallel_map_as_tf_dataset(
             return dict(cam_loc=cam_loc,
                     coords2d_true=co2d,
                     coords3d_true=co3d,
-                    image=tf.convert_to_tensor(image),
+                    image=image,
                     image_path=impath,
                     intrinsics=intrinsics,
                     is_joint_in_fov=joint_in,
                     joint_validity_mask=mask,
                     rot_to_orig_cam=rot_cam,
                     rot_to_world=rot_world)
-            '''
-            return {'cam_loc': tf.convert_to_tensor(cam_loc), 
-                    'coords2d_true': tf.convert_to_tensor(co2d), 
-                    'coords3d_true': tf.convert_to_tensor(co3d), 
-                    'image': tf.convert_to_tensor(image),
-                    'image_path': tf.convert_to_tensor(impath),
-                    'intrinsics': tf.convert_to_tensor(intrinsics),
-                    'is_joint_in_fov': tf.convert_to_tensor(joint_in),
-                    'joint_validity_mask': tf.convert_to_tensor(mask),
-                    'rot_to_orig_cam': tf.convert_to_tensor(rot_cam),
-                    'rot_to_world': tf.convert_to_tensor(rot_world)}'''
 
         # ds = tf.data.Dataset.from_generator(gen, output_signature=output_signature)
         print(ds)  # <ParallelInterleaveDataset element_spec=TensorSpec(shape=(), dtype=tf.string, name=None)>
-        ds = ds.map(tf_parse_fun, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+        ds = ds.map(tf_parse_fun, num_parallel_calls=80) # tf.data.experimental.AUTOTUNE)
         print(ds)  # <ParallelMapDataset element_spec=(TensorSpec(shape=<unknown>, dtype=tf.float32, name=None), TensorSpec(shape=<unknown>, dtype=tf.float32, name=None), TensorSpec(shape=<unknown>, dtype=tf.float32, name=None), TensorSpec(shape=<unknown>, dtype=tf.float32, name=None), TensorSpec(shape=<unknown>, dtype=tf.string, name=None), TensorSpec(shape=<unknown>, dtype=tf.float32, name=None), TensorSpec(shape=<unknown>, dtype=tf.float32, name=None), TensorSpec(shape=<unknown>, dtype=tf.bool, name=None), TensorSpec(shape=<unknown>, dtype=tf.float32, name=None), TensorSpec(shape=<unknown>, dtype=tf.float32, name=None))>
         ds = ds.map(ensure_shape, num_parallel_calls=tf.data.experimental.AUTOTUNE)
         print(ds)  # <MapDataset element_spec=(TensorSpec(shape=(3,), dtype=tf.float32, name=None), TensorSpec(shape=(17, 2), dtype=tf.float32, name=None), TensorSpec(shape=(17, 3), dtype=tf.float32, name=None), TensorSpec(shape=(160, 160, 3), dtype=tf.float32, name=None), TensorSpec(shape=(), dtype=tf.string, name=None), TensorSpec(shape=(3, 3), dtype=tf.float32, name=None), TensorSpec(shape=(17,), dtype=tf.float32, name=None), TensorSpec(shape=(17,), dtype=tf.bool, name=None), TensorSpec(shape=(3, 3), dtype=tf.float32, name=None), TensorSpec(shape=(3, 3), dtype=tf.float32, name=None))>

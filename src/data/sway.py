@@ -44,7 +44,7 @@ def get_seq_info(phase, root_sway, use_kd):
             seq_names = [line.strip() for line in f.readlines()]
         parts = [0, 55561, 58648, 61734]   # [12000//100*p for p in (0, 90, 95, 100)]  # sway12k
         parts = [0, 1000, 1100, 1200]      # for a quick test
-        parts = [0, 10, 40, 50]          # for debugging
+        #parts = [0, 10, 40, 50]          # for debugging
         #parts = [0, 200, 210, 220]
         pid = {'train':0, 'validation':1, 'test':2}
         seq_names = seq_names[parts[pid[phase]]:parts[pid[phase]+1]]
@@ -185,7 +185,7 @@ def get_examples(phase, pool, use_kd=True, n_tfrecord=0):
 #'sway4test.pkl': include sway_test_variants
 #'sway_kd_1k.pkl': 104M
 #'sway_kd.pkl': sway annotated by the pretrained metrabs (50M frames: frame_step=5)
-@util.cache_result_on_disk(f'{paths.CACHE_DIR}/sway_kd200_tfrecord.pkl', min_time="2023-06-27T11:30:43")
+@util.cache_result_on_disk(f'{paths.CACHE_DIR}/sway_kd_1k_tfrecord.pkl', min_time="2023-06-27T11:30:43")
 def make_sway():
     joint_names = (
         'rhip,rkne,rank,lhip,lkne,lank,tors,neck,head,htop,'
@@ -222,16 +222,15 @@ def make_sway():
         print(datetime.now(), 'load tfrecord using parallel_interleave with 4')
 
         ds_size = sum(dataset.map(lambda x: 1).as_numpy_iterator())
-        print('num_dataset', ds_size)
+        print('regenerate train_examples from tfrecord: num_dataset', ds_size)
 
         for raw_record in tqdm(dataset): #, total=ds_size):
             #print(type(raw_record)), exit()
             ex = tf.train.Example()
             ex.ParseFromString(raw_record.numpy())
             feature = tfu.tf_example_to_feature(ex)
-            new_ex = ps3d.init_from_feature(feature)
+            new_ex = ps3d.init_from_feature(feature)  # without image_numpy
             train_examples.append(new_ex)
-        #exit()
 
     train_examples.sort(key=lambda x: x.image_path)
     valid_examples.sort(key=lambda x: x.image_path)
