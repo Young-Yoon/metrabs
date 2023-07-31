@@ -134,7 +134,6 @@ def parallel_map_as_tf_dataset(
         def ensure_shape(*args):
             res = []
             for v, s in zip(args, parse_shape):
-                print(s)
                 v.set_shape(s)
                 res.append(v)
             # print(res) # [<tf.Tensor 'args_0:0' shape=(3,) dtype=float32>, <tf.Tensor 'args_1:0' shape=(17, 2) dtype=float32>, <tf.Tensor 'args_2:0' shape=(17, 3) dtype=float32>, <tf.Tensor 'args_3:0' shape=(160, 160, 3) dtype=float32>, <tf.Tensor 'args_4:0' shape=() dtype=string>, <tf.Tensor 'args_5:0' shape=(3, 3) dtype=float32>, <tf.Tensor 'args_6:0' shape=(17,) dtype=float32>, <tf.Tensor 'args_7:0' shape=(17,) dtype=bool>, <tf.Tensor 'args_8:0' shape=(3, 3) dtype=float32>, <tf.Tensor 'args_9:0' shape=(3, 3) dtype=float32>]
@@ -142,9 +141,8 @@ def parallel_map_as_tf_dataset(
 
         def create_dict(cam_loc, co2d, co3d, image, impath, intrinsics, joint_in, mask, rot_cam, rot_world):
             inps = (cam_loc, co2d, co3d, image, impath, intrinsics, joint_in, mask, rot_cam, rot_world)
-            print('At create_dict', [(type(x), x.shape, x.dtype, x.ref().deref()) for x in inps])
+            # print('At create_dict', [(type(x), x.shape, x.dtype, x.ref().deref()) for x in inps])
             # At create_dict [(<class 'tensorflow.python.framework.ops.Tensor'>, TensorShape(None), tf.float32), (<class 'tensorflow.python.framework.ops.Tensor'>, TensorShape(None), tf.float32), (<class 'tensorflow.python.framework.ops.Tensor'>, TensorShape(None), tf.float32), (<class 'tensorflow.python.framework.ops.Tensor'>, TensorShape(None), tf.float32), (<class 'tensorflow.python.framework.ops.Tensor'>, TensorShape(None), tf.string), (<class 'tensorflow.python.framework.ops.Tensor'>, TensorShape(None), tf.float32), (<class 'tensorflow.python.framework.ops.Tensor'>, TensorShape(None), tf.float32), (<class 'tensorflow.python.framework.ops.Tensor'>, TensorShape(None), tf.bool), (<class 'tensorflow.python.framework.ops.Tensor'>, TensorShape(None), tf.float32), (<class 'tensorflow.python.framework.ops.Tensor'>, TensorShape(None), tf.float32)]
-            #exit()
             return dict(cam_loc=cam_loc,
                     coords2d_true=co2d,
                     coords3d_true=co3d,
