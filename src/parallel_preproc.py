@@ -81,6 +81,10 @@ def parallel_map_as_tf_dataset(
             tf.data.experimental.parallel_interleave(
             lambda filename: tf.data.TFRecordDataset(filename),
             cycle_length=4))
+        #from datetime import datetime
+        #print(datetime.now())
+        #ds_size = sum(ds.map(lambda x: 1, num_parallel_calls=tf.data.experimental.AUTOTUNE).as_numpy_iterator())  # sway_1k: 131k 4min->14sec
+        #print(datetime.now(), ds_size), exit()
 
         def parse_fun(raw_record):
             ex = tf.train.Example()
@@ -105,8 +109,8 @@ def parallel_map_as_tf_dataset(
             # print(parse_shape)  # [[3], [17, 2], [17, 3], [160, 160, 3], [], [3, 3], [17], [17], [3, 3], [3, 3]]
 
         tf_parse_fun = lambda x: tf.py_function(parse_fun, inp=[x], Tout=tuple(parse_signature)) #(tf.float32, tf.float32, tf.float32, tf.float32, tf.string, tf.float32, tf.float32, tf.bool, tf.float32, tf.float32)),
-        for raw_record in ds.take(1):
-            tf_parse_sample = tf_parse_fun(raw_record)
+        #for raw_record in ds.take(1):
+        #    tf_parse_sample = tf_parse_fun(raw_record)
             # print(type(tf_parse_sample), [(type(e), e.shape, e.dtype)for e in tf_parse_sample])
             # <class 'list'> [(<class 'tensorflow.python.framework.ops.EagerTensor'>, TensorShape([3]), tf.float32), (<class 'tensorflow.python.framework.ops.EagerTensor'>, TensorShape([17, 2]), tf.float32), (<class 'tensorflow.python.framework.ops.EagerTensor'>, TensorShape([17, 3]), tf.float32), (<class 'tensorflow.python.framework.ops.EagerTensor'>, TensorShape([160, 160, 3]), tf.float32), (<class 'tensorflow.python.framework.ops.EagerTensor'>, TensorShape([]), tf.string), (<class 'tensorflow.python.framework.ops.EagerTensor'>, TensorShape([3, 3]), tf.float32), (<class 'tensorflow.python.framework.ops.EagerTensor'>, TensorShape([17]), tf.float32), (<class 'tensorflow.python.framework.ops.EagerTensor'>, TensorShape([17]), tf.bool), (<class 'tensorflow.python.framework.ops.EagerTensor'>, TensorShape([3, 3]), tf.float32), (<class 'tensorflow.python.framework.ops.EagerTensor'>, TensorShape([3, 3]), tf.float32)]
 
