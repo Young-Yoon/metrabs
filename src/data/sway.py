@@ -108,7 +108,6 @@ def get_examples(phase, pool, use_kd=True, n_tfrecord=0):
     root_sway = f'{paths.DATA_ROOT}/sway'
     seq_names, seq_folders, frame_step = get_seq_info(phase, root_sway, use_kd)
     i_seq, n_seq = 0, len(seq_names)*len(seq_folders)
-    # completed_frames, total_frames = 0, 0
     fr_counter, jobs = 0, list()
     if n_tfrecord > 0:
         writers = [tf.io.TFRecordWriter(f'{paths.CACHE_DIR}/tfrecord/sway_{phase}_{i}.tfrecord') for i in range(n_tfrecord)]
@@ -119,7 +118,6 @@ def get_examples(phase, pool, use_kd=True, n_tfrecord=0):
         if not load_success:
             continue
         camera, world_pose3d, bbox, n_frames = params
-        #total_frames += n_frames
         if isinstance(camera, cameralib.Camera):
             fixedCam = True
         else:
@@ -133,7 +131,6 @@ def get_examples(phase, pool, use_kd=True, n_tfrecord=0):
                 if not fixedCam:
                     if fr_idx not in intrinsics.keys():
                         continue
-                    #print(type(intrinsics), type(extrinsics), seq_dir, seq_name, i_frame, intrinsics, extrinsics)
                     camera = cameralib.Camera(
                         extrinsic_matrix=extrinsics, intrinsic_matrix=intrinsics[fr_idx],
                         world_up=(0, 1, 0))                    
@@ -168,17 +165,14 @@ def get_examples(phase, pool, use_kd=True, n_tfrecord=0):
                 #result.append(new_ex)
             else:
                 jobs.append(pool.apply_async(make_efficient_example, (ex, new_image_relpath, True), callback=writers[i_seq%n_tfrecord].write))
-                #fr_counter += 1
-                #new_ex = make_efficient_example(ex, new_image_relpath, tf_format=True)
-                #writers[i_seq % n_tfrecord].write(new_ex)            
 
     if n_tfrecord > 0:
-        result='tfrecord'
-        print(f'tfrecord won\'t be close until all {len(jobs)} jobs are done')
+        print(f'Closing tfrecord files: wait until all {len(jobs)} jobs are complete')
         while sum([not r.ready() for r in jobs]) > 0:
             pass
         for writer in writers:
             writer.close()
+        result='tfrecord'  # empty example with a message 'tfrecord'
     return result
 
 
@@ -218,18 +212,16 @@ def make_sway():
         dataset = filenames.apply(
             tf.data.experimental.parallel_interleave(
             lambda filename: tf.data.TFRecordDataset(filename),
-            cycle_length=4))
-        print(datetime.now(), 'load tfrecord using parallel_interleave with 4')
+            cycle_length=FLAGS.workers))
 
         ds_size = sum(dataset.map(lambda x: 1).as_numpy_iterator())
-        print('regenerate train_examples from tfrecord: num_dataset', ds_size)
+        print('dataset size in tfrecord:', ds_size)
 
-        for raw_record in tqdm(dataset): #, total=ds_size):
-            #print(type(raw_record)), exit()
+        for raw_record in tqdm(dataset):
             ex = tf.train.Example()
             ex.ParseFromString(raw_record.numpy())
             feature = tfu.tf_example_to_feature(ex)
-            new_ex = ps3d.init_from_feature(feature)  # without image_numpy
+            new_ex = ps3d.init_from_tf_features(feature)  # without image_numpy
             train_examples.append(new_ex)
 
     train_examples.sort(key=lambda x: x.image_path)

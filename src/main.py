@@ -71,24 +71,13 @@ def train():
         n_workers=FLAGS.workers,
         rng=util.new_rng(rng), n_completed_steps=n_completed_steps,
         n_total_steps=FLAGS.training_steps, roundrobin_sizes=roundrobin_sizes, use_tfrecord=True)
-    print(type(data3d))  # <class 'tensorflow.python.data.ops.dataset_ops.BatchDataset'> 
-    it3, it2 = iter(data3d), iter(data2d)
-    item3, item2 = next(it3), next(it2)
-    print(type(item3), type(item2)) # <class 'dict'> <class 'dict'>
+    # print(data3d)  # <BatchDataset element_spec={'cam_loc': TensorSpec(shape=(16, 3), dtype=tf.float32, name=None), 'coords2d_true': TensorSpec(shape=(16, 17, 2), dtype=tf.float32, name=None), 'coords3d_true': TensorSpec(shape=(16, 17, 3), dtype=tf.float32, name=None), 'image': TensorSpec(shape=(16, 160, 160, 3), dtype=tf.float32, name=None), 'image_path': TensorSpec(shape=(16,), dtype=tf.string, name=None), 'intrinsics': TensorSpec(shape=(16, 3, 3), dtype=tf.float32, name=None), 'is_joint_in_fov': TensorSpec(shape=(16, 17), dtype=tf.float32, name=None), 'joint_validity_mask': TensorSpec(shape=(16, 17), dtype=tf.bool, name=None), 'rot_to_orig_cam': TensorSpec(shape=(16, 3, 3), dtype=tf.float32, name=None), 'rot_to_world': TensorSpec(shape=(16, 3, 3), dtype=tf.float32, name=None)}>
 
     data_train = tf.data.Dataset.zip((data3d, data2d))
-    it = iter(data_train)
-    item = next(it)
-    print(item[0].keys(), item[0]['image'].shape, item[1].keys(), item[1]['image_2d'].shape)
-    # dict_keys(['image', 'intrinsics', 'image_path', 'coords3d_true', 'coords2d_true', 'rot_to_orig_cam', 'rot_to_world', 'cam_loc', 'joint_validity_mask', 'is_joint_in_fov']) (16, 160, 160, 3) 
-    # dict_keys(['image_2d', 'intrinsics_2d', 'image_path_2d', 'coords2d_true_2d', 'joint_validity_mask_2d', 'backward_matrix', 'is_joint_in_fov_2d']) (32, 160, 160, 3)
+    # print(data_train)  # <ZipDataset element_spec=({'cam_loc': TensorSpec(shape=(16, 3), dtype=tf.float32, name=None), 'coords2d_true': TensorSpec(shape=(16, 17, 2), dtype=tf.float32, name=None), 'coords3d_true': TensorSpec(shape=(16, 17, 3), dtype=tf.float32, name=None), 'image': TensorSpec(shape=(16, 160, 160, 3), dtype=tf.float32, name=None), 'image_path': TensorSpec(shape=(16,), dtype=tf.string, name=None), 'intrinsics': TensorSpec(shape=(16, 3, 3), dtype=tf.float32, name=None), 'is_joint_in_fov': TensorSpec(shape=(16, 17), dtype=tf.float32, name=None), 'joint_validity_mask': TensorSpec(shape=(16, 17), dtype=tf.bool, name=None), 'rot_to_orig_cam': TensorSpec(shape=(16, 3, 3), dtype=tf.float32, name=None), 'rot_to_world': TensorSpec(shape=(16, 3, 3), dtype=tf.float32, name=None)}, 
+    # {'image_2d': TensorSpec(shape=(32, 160, 160, 3), dtype=tf.float32, name=None), 'intrinsics_2d': TensorSpec(shape=(32, 3, 3), dtype=tf.float32, name=None), 'image_path_2d': TensorSpec(shape=(32,), dtype=tf.string, name=None), 'coords2d_true_2d': TensorSpec(shape=(32, 12, 2), dtype=tf.float32, name=None), 'joint_validity_mask_2d': TensorSpec(shape=(32, 12), dtype=tf.bool, name=None), 'backward_matrix': TensorSpec(shape=(32, 3, 3), dtype=tf.float32, name=None), 'is_joint_in_fov_2d': TensorSpec(shape=(32, 12), dtype=tf.bool, name=None)})>
     data_train = data_train.map(lambda batch3d, batch2d: {**batch3d, **batch2d})
-    it = iter(data_train)
-    item = next(it)
-    print(item.keys(), item['image'].shape)
-    # dict_keys(['image', 'intrinsics', 'image_path', 'coords3d_true', 'coords2d_true', 'rot_to_orig_cam', 'rot_to_world', 'cam_loc', 'joint_validity_mask', 'is_joint_in_fov', 'image_2d', 'intrinsics_2d', 'image_path_2d', 'coords2d_true_2d', 'joint_validity_mask_2d', 'backward_matrix', 'is_joint_in_fov_2d']) (16, 160, 160, 3)
-    #exit()
-
+    print(data_train)  # <MapDataset element_spec={'cam_loc': TensorSpec(shape=(16, 3), dtype=tf.float32, name=None), 'coords2d_true': TensorSpec(shape=(16, 17, 2), dtype=tf.float32, name=None), 'coords3d_true': TensorSpec(shape=(16, 17, 3), dtype=tf.float32, name=None), 'image': TensorSpec(shape=(16, 160, 160, 3), dtype=tf.float32, name=None), 'image_path': TensorSpec(shape=(16,), dtype=tf.string, name=None), 'intrinsics': TensorSpec(shape=(16, 3, 3), dtype=tf.float32, name=None), 'is_joint_in_fov': TensorSpec(shape=(16, 17), dtype=tf.float32, name=None), 'joint_validity_mask': TensorSpec(shape=(16, 17), dtype=tf.bool, name=None), 'rot_to_orig_cam': TensorSpec(shape=(16, 3, 3), dtype=tf.float32, name=None), 'rot_to_world': TensorSpec(shape=(16, 3, 3), dtype=tf.float32, name=None), 'image_2d': TensorSpec(shape=(32, 160, 160, 3), dtype=tf.float32, name=None), 'intrinsics_2d': TensorSpec(shape=(32, 3, 3), dtype=tf.float32, name=None), 'image_path_2d': TensorSpec(shape=(32,), dtype=tf.string, name=None), 'coords2d_true_2d': TensorSpec(shape=(32, 12, 2), dtype=tf.float32, name=None), 'joint_validity_mask_2d': TensorSpec(shape=(32, 12), dtype=tf.bool, name=None), 'backward_matrix': TensorSpec(shape=(32, 3, 3), dtype=tf.float32, name=None), 'is_joint_in_fov_2d': TensorSpec(shape=(32, 12), dtype=tf.bool, name=None)}>
     if not FLAGS.multi_gpu:
         data_train = data_train.apply(tf.data.experimental.prefetch_to_device('GPU:0', 2))
 
@@ -337,9 +326,9 @@ def build_dataflow(
         n_completed_items=n_completed_steps * batch_size, n_total_items=n_total_items,
         roundrobin_sizes=roundrobin_sizes, use_tfrecord=use_tfrecord)
     dataset = dataset.batch(batch_size, drop_remainder=(learning_phase == tfu.TRAIN))
-    if False and use_tfrecord:
-        dataset = dataset.map(load_fn, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-        dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+    #if use_tfrecord:
+    #    dataset = dataset.map(load_fn, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+    #    dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
     return dataset
 
 

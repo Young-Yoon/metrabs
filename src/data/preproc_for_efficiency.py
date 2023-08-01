@@ -16,7 +16,6 @@ import improc
 import util
 import io
 
-
 @functools.lru_cache()
 def get_memory(shape):
     im = np.empty(shape=[*shape[:2], 3], dtype=np.float32)
@@ -76,25 +75,13 @@ def make_efficient_example(
             new_im = (new_im ** (1 / 2.2) * 255).astype(np.uint8)
         util.ensure_path_exists(new_image_abspath)
         img_bytes = imageio.imwrite(new_image_abspath, new_im, quality=95)
-        print(type(img_bytes), len(img_bytes))
         assert improc.is_image_readable(new_image_abspath)
 
     new_ex = copy.deepcopy(ex)
     new_ex.bbox = reprojected_box
     new_ex.image_path = new_image_path
     if tf_format:
-        new_ex.image_numpy = imageio.imread(new_image_abspath)  # 11M vs 11G
-        #with open('files.txt', 'a') as f:
-        #    f.write(f'{new_ex.image_path}, {new_ex.image_numpy.shape}, {new_ex.image_numpy.size}\n')
-        '''
-        a = new_ex.image_numpy
-        img_bytes = a.tobytes()
-        c = np.frombuffer(img_bytes, dtype=np.uint8)
-        d = c.reshape(a.shape)
-        print(type(a), a.shape, len(img_bytes), len(c), np.array_equal(a.flatten(), c), type(c), d.shape, np.array_equal(a, d))
-        exit()
-        '''
-
+        new_ex.image_numpy = imageio.imread(new_image_abspath)  # 100M vs 100G for sway_1k
     if is3d:
         new_ex.camera = new_camera
     else:

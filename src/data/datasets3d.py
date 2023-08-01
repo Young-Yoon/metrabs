@@ -66,7 +66,6 @@ class Pose3DExample:
             feature['image_shape'] = tfu._int64_feature(self.image_numpy.shape)
             feature['image_numpy'] = tfu._bytes_feature(self.image_numpy.tobytes())
         cam_feature = self.camera.serialize()
-        #print(feature.keys(), cam_feature), exit()
         return tf.train.Example(features=tf.train.Features(feature={**feature, **cam_feature})).SerializeToString()
 
 
@@ -94,7 +93,7 @@ def _parse_image_function(example_proto):
 #parsed_image_dataset
 
 
-def init_from_feature(feature, with_image=False):
+def init_from_tf_features(feature, with_image=False):
     if with_image and 'image_numpy' in feature.keys():
         img_bytes = feature['image_numpy']
         shapes = feature['image_shape']
@@ -104,7 +103,7 @@ def init_from_feature(feature, with_image=False):
         img = None
     return Pose3DExample(feature['impath'].decode(),
                          feature['world_coords'].reshape(feature['world_coords_shape']),
-                         feature['bbox'], cameralib.init_from_feature(feature), image_numpy=img)
+                         feature['bbox'], cameralib.init_from_tf_features(feature), image_numpy=img)
 
 
 def make_h36m_incorrect_S9(*args, **kwargs):

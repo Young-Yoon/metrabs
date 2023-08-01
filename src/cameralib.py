@@ -71,7 +71,7 @@ class Camera:
             rot_world_to_cam = np.eye(3, dtype=np.float32)
 
         if extrinsic_matrix is not None and isinstance(extrinsic_matrix, tuple) and len(extrinsic_matrix) == 2:
-            self.R, self.t = extrinsic_matrix
+            self.R, self.t = extrinsic_matrix  # direct injection
         elif extrinsic_matrix is not None:
             self.R = np.asarray(extrinsic_matrix[:3, :3], dtype=np.float32)
             self.t = -self.R.T @ extrinsic_matrix[:3, 3].astype(np.float32)
@@ -92,7 +92,6 @@ class Camera:
                             f'got {self.intrinsic_matrix[2, :]}.')
 
     def serialize(self):
-        fn_none = lambda i, o: None if i is None else o
         feature = {'R_shape':tfu._int64_feature(self.R.shape),
                    'R':tfu._float_feature(self.R.flatten().tolist()),
                    't_shape':tfu._int64_feature(self.t.shape),
@@ -361,7 +360,7 @@ class Camera:
         return Camera(intrinsic_matrix=intrinsics)
 
 
-def init_from_feature(feature):
+def init_from_tf_features(feature):
     return Camera(intrinsic_matrix=feature['intrinsic'].reshape(feature['intrinsic_shape']),
                   distortion_coeffs=feature['distortion'].reshape(feature['distortion']) if 'distortion' in feature.keys() else None,
                   world_up=feature['world_up'].reshape(feature['world_up_shape']),

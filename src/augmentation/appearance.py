@@ -21,6 +21,7 @@ def augment_appearance(im, learning_phase, occlude_prob, rng):
             occlude_type = str(occlusion_rng.choice(['objects', 'random-erase']))
         else:
             occlude_type = None
+        assert occlude_type is None and FLAGS.color_aug is False
 
         if occlude_type == 'objects':
             # For object occlusion augmentation, do the occlusion first, then the filtering,

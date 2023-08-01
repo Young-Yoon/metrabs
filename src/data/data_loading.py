@@ -84,7 +84,7 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
           FLAGS.zero_padding]])+'\n')
     # Get the random number generators for the different augmentations to make it reproducibile
     appearance_rng = util.new_rng(rng)
-    background_rng = util.new_rng(rng)
+    #background_rng = util.new_rng(rng)
     geom_rng = util.new_rng(rng)
     partial_visi_rng = util.new_rng(rng)
     upperbody_indices = [0, 9, 10, 11, 12, 13, 14, 15, 16]
@@ -112,6 +112,7 @@ def load_and_transform3d(ex, joint_info, learning_phase, rng):
     use_partial_visi_aug = (
             (learning_phase == TRAIN or FLAGS.test_aug) and
             partial_visi_rng.rand() < partial_visi_prob)
+    assert use_partial_visi_aug is False and FLAGS.geom_aug is False
     
     if use_partial_visi_aug:
         box = util.random_partial_subbox(boxlib.expand_to_square(box), partial_visi_rng)
