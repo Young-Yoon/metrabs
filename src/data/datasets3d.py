@@ -57,6 +57,7 @@ class Pose3DExample:
         self.scene_name = scene_name
         self.mask = mask
 
+    # Before writing tfrecord, dict serialize
     def serialize(self):
         feature = {'impath':tfu._bytes_feature(bytes(self.image_path, 'utf-8')),
                    'world_coords_shape':tfu._int64_feature(self.world_coords.shape),
@@ -69,30 +70,7 @@ class Pose3DExample:
         return tf.train.Example(features=tf.train.Features(feature={**feature, **cam_feature})).SerializeToString()
 
 
-def _parse_image_function(example_proto):
-    pose3d_desc = {
-        'impath': tf.io.FixedLenFeature([], tf.string),
-        'world_coords_shape': tf.io.FixedLenFeature([], tf.int64),
-        'world_coords': tf.io.FixedLenFeature([], tf.float32),
-        'bbox': tf.io.FixedLenFeature([], tf.float32),
-        'image_shape': tf.io.FixedLenFeature([], tf.int64),
-        'image_numpy': tf.io.FixedLenFeature([], tf.string),
-        'R_shape': tf.io.FixedLenFeature([], tf.int64),
-        'R': tf.io.FixedLenFeature([], tf.float32),
-        't_shape': tf.io.FixedLenFeature([], tf.int64),
-        't': tf.io.FixedLenFeature([], tf.float32),
-        'intrinsic_shape': tf.io.FixedLenFeature([], tf.int64),
-        'intrinsic': tf.io.FixedLenFeature([], tf.float32),
-        'world_up_shape': tf.io.FixedLenFeature([], tf.int64),
-        'world_up': tf.io.FixedLenFeature([], tf.float32),
-        'distortion_shape': tf.io.FixedLenFeature([], tf.int64),
-        'distortion': tf.io.FixedLenFeature([], tf.float32)
-    }
-    return tf.io.parse_single_example(example_proto, pose3d_desc)
-#parsed_image_dataset = raw_image_dataset.map(_parse_image_function)
-#parsed_image_dataset
-
-
+# 1) After reading tfrecord and 2) converting to dict, 3) construct Example class
 def init_from_tf_features(feature, with_image=False):
     if with_image and 'image_numpy' in feature.keys():
         img_bytes = feature['image_numpy']

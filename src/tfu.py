@@ -418,7 +418,14 @@ def _int64_feature(value):
     return tf.train.Feature(int64_list=tf.train.Int64List(value=value))
 
 
-def tf_example_to_feature(ex, tf_format=False):
+def parse_tfrecord(str_tensor):             # <class 'tensorflow.python.framework.ops.EagerTensor'>
+    ex = tf.train.Example()
+    ex.ParseFromString(str_tensor.numpy())  # <class 'bytes'>
+    return ex                               # <class 'tensorflow.core.example.example_pb2.Example'>
+
+
+# 1) After reading tfrecord, 2) convert to dict
+def proto_to_dict(ex, tf_format=False):
     output = {}
     for key, feature in ex.features.feature.items():
         kind = feature.WhichOneof('kind')
@@ -429,3 +436,27 @@ def tf_example_to_feature(ex, tf_format=False):
             val = tf.convert_to_tensor(val)
         output[key] = val
     return output
+
+
+# Before writing tfrecord
+def tf_serialize(tfdict):
+    feature = {}
+    for key in tfdict.keys():
+        e = tfdict[key]
+        if e.dtype in {tf.float32, tf.float64}:
+            feature[key] = _float_feature(e.numpy().flatten().tolist())
+        elif e.dtype in {tf.bool, tf.int32, tf.uint32, tf.int64, tf.uint64}:
+            feature[key] = _int64_feature(e.numpy().flatten().tolist())
+        elif e.dtype in {tf.string}:
+            # print(key, e.numpy())
+            feature[key] = _bytes_feature(e.numpy())
+    return tf.train.Example(features=tf.train.Features(feature=feature)).SerializeToString()
+
+
+# Convert desc_list to tfrecord_desc
+def tf_proto_desc(desc_list):
+    feature_desc = {}
+    for key, shape, dtype in desc_list:
+        def_val = (tf.float32, 0.0) if dtype in {tf.float32, tf.float64} else (tf.int64, 0) if dtype in {tf.bool, tf.int32, tf.uint32, tf.int64, tf.uint64} else (tf.string, '')
+        feature_desc[key] = tf.io.FixedLenFeature([], def_val[0], default_value=def_val[1])
+    return feature_desc

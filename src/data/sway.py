@@ -110,7 +110,9 @@ def get_examples(phase, pool, use_kd=True, n_tfrecord=0):
     i_seq, n_seq = 0, len(seq_names)*len(seq_folders)
     fr_counter, jobs = 0, list()
     if n_tfrecord > 0:
-        writers = [tf.io.TFRecordWriter(f'{paths.CACHE_DIR}/tfrecord/sway_{phase}_{i}.tfrecord') for i in range(n_tfrecord)]
+        tfrecord_path = f'{paths.CACHE_DIR}/tfrecord_ex/'
+        util.ensure_path_exists(tfrecord_path)
+        writers = [tf.io.TFRecordWriter(f'{tfrecord_path}sway_{phase}_{i}.tfrecord') for i in range(n_tfrecord)]
 
     for seq_dir, seq_name in util.progressbar(itertools.product(seq_folders, seq_names)):
         load_success, params = load_seq_param(seq_dir, seq_name, root_sway, use_kd)
@@ -220,7 +222,7 @@ def make_sway():
         for raw_record in tqdm(dataset):
             ex = tf.train.Example()
             ex.ParseFromString(raw_record.numpy())
-            feature = tfu.tf_example_to_feature(ex)
+            feature = tfu.proto_to_dict(ex)
             new_ex = ps3d.init_from_tf_features(feature)  # without image_numpy
             train_examples.append(new_ex)
 
