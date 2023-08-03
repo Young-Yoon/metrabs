@@ -12,12 +12,25 @@ import tensorflow as tf
 import my_itertools
 import tfu
 import util
+from tqdm import tqdm
+
+
+def write_features(dataset, pool, n_tfrecord, tfrecord_path):
+    writers = [tf.io.TFRecordWriter(f'{tfrecord_path}sway_train_{i}.tfrecord') for i in range(n_tfrecord)]
+    jobs = list()
+    for i, raw_record in enumerate(tqdm(dataset)):
+        jobs.append(pool.apply_async(tfu.tf_serialize, raw_record, callback=writers[i%n_tfrecord].write))
+    print('remaining', sum([not r.ready() for r in jobs]))
+    while sum([not r.ready() for r in jobs]) > 0:
+        pass 
+    for w in writers:
+        w.close()
 
 
 def parallel_map_as_tf_dataset(
         fun, iterable, *, shuffle_before_each_epoch=False,
         extra_args=None, n_workers=10, rng=None, max_unconsumed=256, n_completed_items=0,
-        n_total_items=None, roundrobin_sizes=None, use_tfrecord=False, n_tfrecord=10):
+        n_total_items=None, roundrobin_sizes=None, use_tfrecord=False, n_tfrecord=30):
     """Maps `fun` to each element of `iterable` and wraps the resulting sequence as
     as a TensorFlow Dataset. Elements are processed by parallel workers using `multiprocessing`.
 
@@ -48,6 +61,11 @@ def parallel_map_as_tf_dataset(
 
     sample_output = fun(first_elem, *extra_args, rng=np.random.RandomState(0))
     output_signature = tf.nest.map_structure(tf.type_spec_from_value, sample_output)
+    print(output_signature, output_signature.__dir__())
+    out_sig_list = [tf.convert_to_tensor(sample_output[k]) for k in sorted(sample_output.keys())]
+    parse_shape = [e.get_shape().as_list() for e in out_sig_list]
+    parse_dtype = [e.dtype for e in out_sig_list]
+    #exit()
 
     if not roundrobin_sizes:
         items = my_itertools.iterate_repeatedly(
@@ -77,6 +95,7 @@ def parallel_map_as_tf_dataset(
         import paths
         import data.datasets3d as ps3d
         from datetime import datetime
+        from tqdm import tqdm
         ex_files = tf.data.Dataset.list_files(f'{paths.CACHE_DIR}/tfrecord_ex/sway_train_*.tfrecord')   # sway_1k: 105G
         print(datetime.now(), 'Construct TFRecordDataset') # < 1sec
         ds = ex_files.apply(tf.data.experimental.parallel_interleave(
@@ -85,8 +104,11 @@ def parallel_map_as_tf_dataset(
         #print(datetime.now())
         #ds_size = sum(ds.map(lambda x: 1, num_parallel_calls=tf.data.experimental.AUTOTUNE).as_numpy_iterator())  # sway_1k: 131k 4min->13sec
         #print(datetime.now(), ds_size), exit()
+        
+        enum_tftype = [tf.string, tf.bool, tf.float32]
+        dec_tftype = lambda x: enum_tftype.index
 
-        def parse_fun(raw_record, use_fun=True):
+        def parse_fun(raw_record, use_fun=True, types=None):
             # 1) Reading tfrecord
             ex = tfu.parse_tfrecord(raw_record)
             # 2) Converting to dict
@@ -95,25 +117,35 @@ def parallel_map_as_tf_dataset(
             if use_fun:
                 new_ex = ps3d.init_from_tf_features(feature, with_image=False)
                 result = fun(new_ex, *extra_args, util.new_rng(iter_rng))
-            else:
+            else:  # parse as float64 or int64
                 result = feature
             res = [result[k] for k in sorted(result.keys())]
             # print('At parse_fun', [(i, type(v), len(v) if isinstance(v, str) else (v.dtype, v.shape)) for i, v in enumerate(res)])
             # At parse_fun [(0, <class 'numpy.ndarray'>, (dtype('float32'), (3,))), (1, <class 'numpy.ndarray'>, (dtype('float32'), (17, 2))), (2, <class 'numpy.ndarray'>, (dtype('float32'), (17, 3))), (3, <class 'numpy.ndarray'>, (dtype('float32'), (160, 160, 3))), (4, <class 'str'>, 79), (5, <class 'numpy.ndarray'>, (dtype('float32'), (3, 3))), (6, <class 'numpy.ndarray'>, (dtype('float32'), (17,))), (7, <class 'numpy.ndarray'>, (dtype('bool'), (17,))), (8, <class 'numpy.ndarray'>, (dtype('float32'), (3, 3))), (9, <class 'numpy.ndarray'>, (dtype('float32'), (3, 3)))]
+                        
             res = [tf.convert_to_tensor(r) for r in res]
+            if types is not None:
+                #types = types[0]
+                #print('parse_dtype  ', types)
+                #print('parsed_tensor', [r.dtype for r in res])
+                res = [tf.reshape(tf.cast(v, enum_tftype[t]), s) for v, t, s in zip(res, types, parse_shape)]     # <------ A great trap in parsing tfrecord
+                
             # print('parse_fun:to_tensor', [(i, type(v), len(v) if isinstance(v, str) else (v.dtype, v.shape)) for i, v in enumerate(res)])
             # parse_fun:to_tensor [(0, <class 'tensorflow.python.framework.ops.EagerTensor'>, (tf.float32, TensorShape([3]))), (1, <class 'tensorflow.python.framework.ops.EagerTensor'>, (tf.float32, TensorShape([17, 2]))), (2, <class 'tensorflow.python.framework.ops.EagerTensor'>, (tf.float32, TensorShape([17, 3]))), (3, <class 'tensorflow.python.framework.ops.EagerTensor'>, (tf.float32, TensorShape([160, 160, 3]))), (4, <class 'tensorflow.python.framework.ops.EagerTensor'>, (tf.string, TensorShape([]))), (5, <class 'tensorflow.python.framework.ops.EagerTensor'>, (tf.float32, TensorShape([3, 3]))), (6, <class 'tensorflow.python.framework.ops.EagerTensor'>, (tf.float32, TensorShape([17]))), (7, <class 'tensorflow.python.framework.ops.EagerTensor'>, (tf.bool, TensorShape([17]))), (8, <class 'tensorflow.python.framework.ops.EagerTensor'>, (tf.float32, TensorShape([3, 3]))), (9, <class 'tensorflow.python.framework.ops.EagerTensor'>, (tf.float32, TensorShape([3, 3])))]
-            # print([r.numpy() for r in res]), exit()
+            # print([r.numpy() for r in res])#, exit()
+            with open('tf_parse_internal.txt', 'a') as f:
+                f.write(' '.join([str(res[4].numpy()), str(res[0].numpy())])+'\n')
             return res
         
         for raw_record in ds.take(1):
             parse_sample = parse_fun(raw_record)
             parse_signature = tf.nest.map_structure(tf.type_spec_from_value, parse_sample)
             # print(parse_signature)  # [TensorSpec(shape=(3,), dtype=tf.float32, name=None), TensorSpec(shape=(17, 2), dtype=tf.float32, name=None), TensorSpec(shape=(17, 3), dtype=tf.float32, name=None), TensorSpec(shape=(160, 160, 3), dtype=tf.float32, name=None), TensorSpec(shape=(), dtype=tf.string, name=None), TensorSpec(shape=(3, 3), dtype=tf.float32, name=None), TensorSpec(shape=(17,), dtype=tf.float32, name=None), TensorSpec(shape=(17,), dtype=tf.bool, name=None), TensorSpec(shape=(3, 3), dtype=tf.float32, name=None), TensorSpec(shape=(3, 3), dtype=tf.float32, name=None)]
-            parse_shape = [e.get_shape().as_list() for e in parse_sample]
+            
+            print(parse_dtype) #, exit()
             # print(parse_shape)  # [[3], [17, 2], [17, 3], [160, 160, 3], [], [3, 3], [17], [17], [3, 3], [3, 3]]
 
-        tf_parse_fun = lambda x: tf.py_function(parse_fun, inp=[x, True], Tout=tuple(parse_signature)) #(tf.float32, tf.float32, tf.float32, tf.float32, tf.string, tf.float32, tf.float32, tf.bool, tf.float32, tf.float32)),
+        tf_parse_from_ex = lambda x: tf.py_function(parse_fun, inp=[x, True], Tout=tuple(parse_signature)) #(tf.float32, tf.float32, tf.float32, tf.float32, tf.string, tf.float32, tf.float32, tf.bool, tf.float32, tf.float32)),
         #for raw_record in ds.take(1):
         #    tf_parse_sample = tf_parse_fun(raw_record)
             # print(type(tf_parse_sample), [(type(e), e.shape, e.dtype)for e in tf_parse_sample])
@@ -121,10 +153,11 @@ def parallel_map_as_tf_dataset(
 
         def ensure_shape(*args):
             res = []
-            for v, s in zip(args, parse_shape):
+            for v, s, t in zip(args, parse_shape, parse_dtype):
                 v.set_shape(s)
+                v = tf.cast(v, t)
                 res.append(v)
-            # print(res) # [<tf.Tensor 'args_0:0' shape=(3,) dtype=float32>, <tf.Tensor 'args_1:0' shape=(17, 2) dtype=float32>, <tf.Tensor 'args_2:0' shape=(17, 3) dtype=float32>, <tf.Tensor 'args_3:0' shape=(160, 160, 3) dtype=float32>, <tf.Tensor 'args_4:0' shape=() dtype=string>, <tf.Tensor 'args_5:0' shape=(3, 3) dtype=float32>, <tf.Tensor 'args_6:0' shape=(17,) dtype=float32>, <tf.Tensor 'args_7:0' shape=(17,) dtype=bool>, <tf.Tensor 'args_8:0' shape=(3, 3) dtype=float32>, <tf.Tensor 'args_9:0' shape=(3, 3) dtype=float32>]
+            print('After ensure_shape:', res) # [<tf.Tensor 'args_0:0' shape=(3,) dtype=float32>, <tf.Tensor 'args_1:0' shape=(17, 2) dtype=float32>, <tf.Tensor 'args_2:0' shape=(17, 3) dtype=float32>, <tf.Tensor 'args_3:0' shape=(160, 160, 3) dtype=float32>, <tf.Tensor 'args_4:0' shape=() dtype=string>, <tf.Tensor 'args_5:0' shape=(3, 3) dtype=float32>, <tf.Tensor 'args_6:0' shape=(17,) dtype=float32>, <tf.Tensor 'args_7:0' shape=(17,) dtype=bool>, <tf.Tensor 'args_8:0' shape=(3, 3) dtype=float32>, <tf.Tensor 'args_9:0' shape=(3, 3) dtype=float32>]
             return tuple(res)
 
         def create_dict(cam_loc, co2d, co3d, image, impath, intrinsics, joint_in, mask, rot_cam, rot_world):
@@ -144,7 +177,7 @@ def parallel_map_as_tf_dataset(
 
         # ds = tf.data.Dataset.from_generator(gen, output_signature=output_signature)
         # print(ds)  # <ParallelInterleaveDataset element_spec=TensorSpec(shape=(), dtype=tf.string, name=None)>
-        ds = ds.map(tf_parse_fun, num_parallel_calls=80) # tf.data.experimental.AUTOTUNE)
+        ds = ds.map(tf_parse_from_ex, num_parallel_calls=80) # tf.data.experimental.AUTOTUNE)
         # print(ds)  # <ParallelMapDataset element_spec=(TensorSpec(shape=<unknown>, dtype=tf.float32, name=None), TensorSpec(shape=<unknown>, dtype=tf.float32, name=None), TensorSpec(shape=<unknown>, dtype=tf.float32, name=None), TensorSpec(shape=<unknown>, dtype=tf.float32, name=None), TensorSpec(shape=<unknown>, dtype=tf.string, name=None), TensorSpec(shape=<unknown>, dtype=tf.float32, name=None), TensorSpec(shape=<unknown>, dtype=tf.float32, name=None), TensorSpec(shape=<unknown>, dtype=tf.bool, name=None), TensorSpec(shape=<unknown>, dtype=tf.float32, name=None), TensorSpec(shape=<unknown>, dtype=tf.float32, name=None))>
         ds = ds.map(ensure_shape, num_parallel_calls=tf.data.experimental.AUTOTUNE)
         # print(ds)  # <MapDataset element_spec=(TensorSpec(shape=(3,), dtype=tf.float32, name=None), TensorSpec(shape=(17, 2), dtype=tf.float32, name=None), TensorSpec(shape=(17, 3), dtype=tf.float32, name=None), TensorSpec(shape=(160, 160, 3), dtype=tf.float32, name=None), TensorSpec(shape=(), dtype=tf.string, name=None), TensorSpec(shape=(3, 3), dtype=tf.float32, name=None), TensorSpec(shape=(17,), dtype=tf.float32, name=None), TensorSpec(shape=(17,), dtype=tf.bool, name=None), TensorSpec(shape=(3, 3), dtype=tf.float32, name=None), TensorSpec(shape=(3, 3), dtype=tf.float32, name=None))>
@@ -162,21 +195,31 @@ def parallel_map_as_tf_dataset(
             for raw_record in ds.take(1):
                 desc = [(k, raw_record[k].shape, raw_record[k].dtype) for k in raw_record.keys()]
                 feature_desc = tfu.tf_proto_desc(desc)
+            # print(desc, feature_desc) # OK-------------
             proc_side = raw_record['image'].shape[-2]
             tfrecord_path = f'{paths.CACHE_DIR}/tfrecord3d{n_tfrecord}_{proc_side}/'
-            util.ensure_path_exists(tfrecord_path)
-            writers = [tf.io.TFRecordWriter(f'{tfrecord_path}sway_train_{i}.tfrecord') for i in range(n_tfrecord)]
-            for i, raw_record in enumerate(ds.take(1)):
-                serialized_ex = tfu.tf_serialize(raw_record)
-                # print(serialized_ex)
-                writers[i%n_tfrecord].write(serialized_ex)
-                exproto = tf.train.Example.FromString(serialized_ex)
-                #print(exproto)
-                exdict = tfu.proto_to_dict(exproto)
-                #print(exdict), exit()
+            if not os.path.exists(f'{tfrecord_path}sway_train_0.tfrecord'):
+                util.ensure_path_exists(tfrecord_path)
+                writers = [tf.io.TFRecordWriter(f'{tfrecord_path}sway_train_{i}.tfrecord') for i in range(n_tfrecord)]
 
-            for w in writers:
-                w.close()
+                print(datetime.now(), f'Writing samples to {n_tfrecord} tfrecords')
+                
+                if False:
+                    with util.BoundedPool(None, 120) as pool:
+                        print('using pool, write features into tfrecord files')
+                        write_features(ds, pool, n_tfrecord, tfrecord_path)
+                else:
+                    file_log = open('tf_feature.txt', 'w')
+                    for i, raw_record in enumerate(tqdm(ds.take(1300))):
+                        writers[i%n_tfrecord].write(tfu.tf_serialize(raw_record))
+                        file_log.write(', '.join([str(raw_record[k].numpy()) for k in ['image_path', 'cam_loc', 'joint_validity_mask']])+'\n')
+                    file_log.close()
+
+                from time import sleep
+                sleep(2)
+                for w in writers:
+                    w.close()
+                print(datetime.now(), f'Completed to write {i} samples to {n_tfrecord} tfrecords')
 
             ex_files = tf.data.Dataset.list_files(f'{tfrecord_path}sway_train_*.tfrecord')
             print(len(ex_files))
@@ -184,7 +227,7 @@ def parallel_map_as_tf_dataset(
             ds2 = ex_files.apply(tf.data.experimental.parallel_interleave(lambda filename: tf.data.TFRecordDataset(filename),cycle_length=30))
             print(ds2)  # <ParallelInterleaveDataset element_spec=TensorSpec(shape=(), dtype=tf.string, name=None)>
             ds_size = sum(ds2.map(lambda x: 1, num_parallel_calls=tf.data.experimental.AUTOTUNE).as_numpy_iterator())
-            print(ds_size)
+            print(ds_size)    # OK--------------
 
             def parse_fun3(s):
                 # print(s.dtype, type(s), type(s.numpy()))
@@ -196,36 +239,40 @@ def parallel_map_as_tf_dataset(
 
                 return feature
             
-            for r in ds2.take(1):
-                feature = parse_fun3(r)
+            for i, r in enumerate(ds2.take(3)):
+                feature = parse_fun(r, False, [enum_tftype.index(t) for t in parse_dtype])
                 # parse3_signature = tf.nest.map_structure(tf.type_spec_from_value, feature)
-                print(type(feature), feature.keys(), feature.__dir__()) # , parse3_signature)
+                print('parse_fun: ', i, type(feature), [f.dtype for f in feature])  #OK--------------------, feature) # , parse3_signature)
                 # exit()
 
             # tf_parse_fun3 = lambda x: tf.py_function(parse_fun3, inp=[x], Tout=tuple(parse3_signature))
-            tf_parse_fun3 = lambda x: tf.py_function(parse_fun, inp=[x, False], Tout=tuple(parse_signature))
-            ds2 = ds2.map(tf_parse_fun3, num_parallel_calls=80)
+            tf_parse_from_tfrecord = lambda x: tf.py_function(parse_fun, inp=[x, False, [enum_tftype.index(t) for t in parse_dtype]], Tout=tuple(parse_signature))    # parse_fun: OK--------
+            ds2 = ds2.map(tf_parse_from_tfrecord) # , num_parallel_calls=tf.data.experimental.AUTOTUNE)
             print(ds2)
+            
+            
+            
+            #for r in ds2.take(1):
+            #    print('xxxx')
+            #    print(r)
+            #exit()
+            
             ds2 = ds2.map(ensure_shape, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-            print(ds2)  # <MapDataset element_spec=(TensorSpec(shape=(3,), dtype=tf.float32, name=None), TensorSpec(shape=(17, 2), dtype=tf.float32, name=None), TensorSpec(shape=(17, 3), dtype=tf.float32, name=None), TensorSpec(shape=(160, 160, 3), dtype=tf.float32, name=None), TensorSpec(shape=(), dtype=tf.string, name=None), TensorSpec(shape=(3, 3), dtype=tf.float32, name=None), TensorSpec(shape=(17,), dtype=tf.float32, name=None), TensorSpec(shape=(17,), dtype=tf.bool, name=None), TensorSpec(shape=(3, 3), dtype=tf.float32, name=None), TensorSpec(shape=(3, 3), dtype=tf.float32, name=None))>
-            ds2 = ds2.map(create_dict, num_parallel_calls=tf.data.experimental.AUTOTUNE)
             print(ds2)
-            exit()
-            # ds2 = ds2.map(tf_parse_fun3)
-            # print(type(ds2))  
-            
-            def generator():
-                for f in ds2:
-                    yield parse_fun3(f)
-                    
-            #ds3 = tf.data.Dataset.from_generator(generator, output_types=tf.string, output_shapes=())  # <FlatMapDataset element_spec=TensorSpec(shape=(), dtype=tf.string, name=None)>
-            #print(ds3)
-            exit()
-            
-            
-            for rec in ds2:
-                print(repr(rec))
-            exit()
+            for r in ds2.take(1):
+                print(r)
+            #exit()
+            print(ds2)  # <MapDataset element_spec=(TensorSpec(shape=(3,), dtype=tf.float32, name=None), TensorSpec(shape=(17, 2), dtype=tf.float32, name=None), TensorSpec(shape=(17, 3), dtype=tf.float32, name=None), TensorSpec(shape=(160, 160, 3), dtype=tf.float32, name=None), TensorSpec(shape=(), dtype=tf.string, name=None), TensorSpec(shape=(3, 3), dtype=tf.float32, name=None), TensorSpec(shape=(17,), dtype=tf.float32, name=None), TensorSpec(shape=(17,), dtype=tf.bool, name=None), TensorSpec(shape=(3, 3), dtype=tf.float32, name=None), TensorSpec(shape=(3, 3), dtype=tf.float32, name=None))>
+            ds = ds2.map(create_dict, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+            #print(ds)
+            #exit()
+            print('starting....')
+            file_log2 = open('tf_feature_reload.txt', 'w')
+            for i, e in enumerate(ds.take(30)):
+                print(i)
+                file_log2.write(', '.join([str(e[k].numpy()) for k in ['image_path', 'cam_loc', 'joint_validity_mask']])+'\n')
+            file_log2.close()
+            #exit()
 
     else:
         ds = tf.data.Dataset.from_generator(gen, output_signature=output_signature)

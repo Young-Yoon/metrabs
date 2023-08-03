@@ -64,14 +64,13 @@ def train():
         TRAIN, batch_size=FLAGS.batch_size_2d * n_repl, n_workers=FLAGS.workers,
         rng=util.new_rng(rng), n_completed_steps=n_completed_steps,
         n_total_steps=FLAGS.training_steps)
-
     data3d = build_dataflow(
         example_sections, data.data_loading.load_and_transform3d, (joint_info3d, TRAIN),
         tfu.TRAIN, batch_size=sum(roundrobin_sizes)//2 * n_repl,
         n_workers=FLAGS.workers,
         rng=util.new_rng(rng), n_completed_steps=n_completed_steps,
         n_total_steps=FLAGS.training_steps, roundrobin_sizes=roundrobin_sizes, use_tfrecord=True)
-    # print(data3d)  # <BatchDataset element_spec={'cam_loc': TensorSpec(shape=(16, 3), dtype=tf.float32, name=None), 'coords2d_true': TensorSpec(shape=(16, 17, 2), dtype=tf.float32, name=None), 'coords3d_true': TensorSpec(shape=(16, 17, 3), dtype=tf.float32, name=None), 'image': TensorSpec(shape=(16, 160, 160, 3), dtype=tf.float32, name=None), 'image_path': TensorSpec(shape=(16,), dtype=tf.string, name=None), 'intrinsics': TensorSpec(shape=(16, 3, 3), dtype=tf.float32, name=None), 'is_joint_in_fov': TensorSpec(shape=(16, 17), dtype=tf.float32, name=None), 'joint_validity_mask': TensorSpec(shape=(16, 17), dtype=tf.bool, name=None), 'rot_to_orig_cam': TensorSpec(shape=(16, 3, 3), dtype=tf.float32, name=None), 'rot_to_world': TensorSpec(shape=(16, 3, 3), dtype=tf.float32, name=None)}>
+    print(data3d)  # <BatchDataset element_spec={'cam_loc': TensorSpec(shape=(16, 3), dtype=tf.float32, name=None), 'coords2d_true': TensorSpec(shape=(16, 17, 2), dtype=tf.float32, name=None), 'coords3d_true': TensorSpec(shape=(16, 17, 3), dtype=tf.float32, name=None), 'image': TensorSpec(shape=(16, 160, 160, 3), dtype=tf.float32, name=None), 'image_path': TensorSpec(shape=(16,), dtype=tf.string, name=None), 'intrinsics': TensorSpec(shape=(16, 3, 3), dtype=tf.float32, name=None), 'is_joint_in_fov': TensorSpec(shape=(16, 17), dtype=tf.float32, name=None), 'joint_validity_mask': TensorSpec(shape=(16, 17), dtype=tf.bool, name=None), 'rot_to_orig_cam': TensorSpec(shape=(16, 3, 3), dtype=tf.float32, name=None), 'rot_to_world': TensorSpec(shape=(16, 3, 3), dtype=tf.float32, name=None)}>
 
     data_train = tf.data.Dataset.zip((data3d, data2d))
     # print(data_train)  # <ZipDataset element_spec=({'cam_loc': TensorSpec(shape=(16, 3), dtype=tf.float32, name=None), 'coords2d_true': TensorSpec(shape=(16, 17, 2), dtype=tf.float32, name=None), 'coords3d_true': TensorSpec(shape=(16, 17, 3), dtype=tf.float32, name=None), 'image': TensorSpec(shape=(16, 160, 160, 3), dtype=tf.float32, name=None), 'image_path': TensorSpec(shape=(16,), dtype=tf.string, name=None), 'intrinsics': TensorSpec(shape=(16, 3, 3), dtype=tf.float32, name=None), 'is_joint_in_fov': TensorSpec(shape=(16, 17), dtype=tf.float32, name=None), 'joint_validity_mask': TensorSpec(shape=(16, 17), dtype=tf.bool, name=None), 'rot_to_orig_cam': TensorSpec(shape=(16, 3, 3), dtype=tf.float32, name=None), 'rot_to_world': TensorSpec(shape=(16, 3, 3), dtype=tf.float32, name=None)}, 
