@@ -124,11 +124,11 @@ def parallel_map_as_tf_dataset(
             # At parse_fun [(0, <class 'numpy.ndarray'>, (dtype('float32'), (3,))), (1, <class 'numpy.ndarray'>, (dtype('float32'), (17, 2))), (2, <class 'numpy.ndarray'>, (dtype('float32'), (17, 3))), (3, <class 'numpy.ndarray'>, (dtype('float32'), (160, 160, 3))), (4, <class 'str'>, 79), (5, <class 'numpy.ndarray'>, (dtype('float32'), (3, 3))), (6, <class 'numpy.ndarray'>, (dtype('float32'), (17,))), (7, <class 'numpy.ndarray'>, (dtype('bool'), (17,))), (8, <class 'numpy.ndarray'>, (dtype('float32'), (3, 3))), (9, <class 'numpy.ndarray'>, (dtype('float32'), (3, 3)))]
                         
             res = [tf.convert_to_tensor(r) for r in res]
-            if types is not None:
+            if not use_fun:
                 #types = types[0]
                 #print('parse_dtype  ', types)
                 #print('parsed_tensor', [r.dtype for r in res])
-                res = [tf.reshape(tf.cast(v, enum_tftype[t]), s) for v, t, s in zip(res, types, parse_shape)]     # <------ A great trap in parsing tfrecord
+                res = [tf.reshape(tf.cast(v, t), s) for v, t, s in zip(res, parse_dtype, parse_shape)]     # <------ A great trap in parsing tfrecord
                 
             # print('parse_fun:to_tensor', [(i, type(v), len(v) if isinstance(v, str) else (v.dtype, v.shape)) for i, v in enumerate(res)])
             # parse_fun:to_tensor [(0, <class 'tensorflow.python.framework.ops.EagerTensor'>, (tf.float32, TensorShape([3]))), (1, <class 'tensorflow.python.framework.ops.EagerTensor'>, (tf.float32, TensorShape([17, 2]))), (2, <class 'tensorflow.python.framework.ops.EagerTensor'>, (tf.float32, TensorShape([17, 3]))), (3, <class 'tensorflow.python.framework.ops.EagerTensor'>, (tf.float32, TensorShape([160, 160, 3]))), (4, <class 'tensorflow.python.framework.ops.EagerTensor'>, (tf.string, TensorShape([]))), (5, <class 'tensorflow.python.framework.ops.EagerTensor'>, (tf.float32, TensorShape([3, 3]))), (6, <class 'tensorflow.python.framework.ops.EagerTensor'>, (tf.float32, TensorShape([17]))), (7, <class 'tensorflow.python.framework.ops.EagerTensor'>, (tf.bool, TensorShape([17]))), (8, <class 'tensorflow.python.framework.ops.EagerTensor'>, (tf.float32, TensorShape([3, 3]))), (9, <class 'tensorflow.python.framework.ops.EagerTensor'>, (tf.float32, TensorShape([3, 3])))]
@@ -246,17 +246,10 @@ def parallel_map_as_tf_dataset(
                 # exit()
 
             # tf_parse_fun3 = lambda x: tf.py_function(parse_fun3, inp=[x], Tout=tuple(parse3_signature))
-            tf_parse_from_tfrecord = lambda x: tf.py_function(parse_fun, inp=[x, False, [enum_tftype.index(t) for t in parse_dtype]], Tout=tuple(parse_signature))    # parse_fun: OK--------
+            tf_parse_from_tfrecord = lambda x: tf.py_function(parse_fun, inp=[x, False], Tout=tuple(parse_signature))    # parse_fun: OK--------
             ds2 = ds2.map(tf_parse_from_tfrecord) # , num_parallel_calls=tf.data.experimental.AUTOTUNE)
             print(ds2)
-            
-            
-            
-            #for r in ds2.take(1):
-            #    print('xxxx')
-            #    print(r)
-            #exit()
-            
+                        
             ds2 = ds2.map(ensure_shape, num_parallel_calls=tf.data.experimental.AUTOTUNE)
             print(ds2)
             for r in ds2.take(1):
@@ -273,7 +266,6 @@ def parallel_map_as_tf_dataset(
                 file_log2.write(', '.join([str(e[k].numpy()) for k in ['image_path', 'cam_loc', 'joint_validity_mask']])+'\n')
             file_log2.close()
             #exit()
-
     else:
         ds = tf.data.Dataset.from_generator(gen, output_signature=output_signature)
 
