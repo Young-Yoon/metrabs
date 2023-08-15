@@ -1,14 +1,25 @@
 # MeTRO Implementation
 1. Setup environment in MLP
 https://roblox.atlassian.net/wiki/spaces/~ylee/pages/2106262747/MeTRo+training+setup+on+MLP
+    * The datasets are organized within /home/jovyan/data/metrabs-processed/
+    * The trained models are stored in /home/jovyan/runs/metrabs-exp/$log_dir/model/
 
-2. Visualization
+2. Training Examples
+    * Trained models are listed in https://docs.google.com/spreadsheets/d/1s_EU91shYbMo9f5R5C5338an3WXiY3TREv5LAt8Gn-0/edit#gid=1046801698
+    * As of 08/14/2023, you can find the command to produce our best medium model(46M MAccs) by `grep Raw command /home/jovyan/runs/metrabs-exp/sway_ncnn/160in_ms_w1_up_pv05_abs0_scratch/log.txt`: `metrabs/src$ ./main.py --train --dataset=sway --train-on=trainval --seed=1 --training-steps=1000000 --model-class=Metrabs --workers=30 --validate-period=50000 --final-transposed-conv=1 --backbone=mobilenetV3Small --logdir=sway_ncnn/160in_ms_w1_up_pv05_abs0_scratch --proc-side=160 --output-upper-joints --upper-bbox --partial-visibility-prob=0.5 --mobilenet-alpha=1.0 --zero-padding=0 --occlude-aug-prob-2d=0 --dtype=float32 --absloss-factor=0 --data-format=NCHW --input-float32 --init=scratch`
+
+3. Visualization
 `python src/viz.py model1 .. modelN h36m|input_path output_path`
 
-3. Training Examples
-
 4. Evaluation
+    1. Inference results are stored in the model folder under the filename `predictions_sway.npz` by `metrabs/src$ ./main.py --predict --dataset=sway --checkpoint-dir=sway_ncnn/160in_ms_w1_up_pv05_abs0_scratch --backbone=mobilenetV3Small --init=scratch --mobilenet-alpha=1.0 --model-class=Metrabs --proc-side=160 --output-upper-joints --upper-bbox --upper-bbox-ratio 0.5 0.5 --data-format=NCHW --input-float32`
+    2. MPJPE is calculated by `metrabs/src$ python -m eval_scripts.eval_sway --pred-path=/home/jovyan/runs/metrabs-exp/sway_ncnn/160in_ms_w1_up_pv05_abs0_scratch/predictions_sway.npz --root-last`
 
+5. Data preparation
+You can incorporate 3D datasets by following these steps:
+    1. Integrate a offline dataprocessing function into the `data/datasets3d.py` file. Refer to the example at https://github.rbx.com/ylee/metrabs/pull/10 for guidance
+    2. Include the offline data processing function within the `data/sway.py` file.
+    3. To evaluate models using the new data, develop the evaluation script within the `eval_scripts/eval_sway.py` file.
 
 # MeTRAbs Absolute 3D Human Pose Estimator
 
