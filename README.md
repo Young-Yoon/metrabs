@@ -21,6 +21,26 @@ You can incorporate 3D datasets by following these steps:
     2. Include the offline data processing function within the `data/sway.py` file.
     3. To evaluate models using the new data, develop the evaluation script within the `eval_scripts/eval_sway.py` file.
 
+6. TF Model conversion to ONNX and NCNN
+    1. Convert TF model to ONNX model
+    `PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python python3 -m tf2onnx.convert --saved-model model_path --output output_path --opset 15`    
+    example: `PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python python3 -m tf2onnx.convert --saved-model ./runs/metrabs-exp/sway_ncnn/256in_ms_w1_up_pv05_abs0_scratch_2d/model/ --output ./output/256in_ms_w1_up_pv05_abs0_scratch_2d.onnx --opset 15`
+    
+    2. Dynamic input to fixed input
+    `python3 -m onnxruntime.tools.make_dynamic_shape_fixed input_onnx_path output_onnx_path --input_name input_2 --input_shape N,C,H,W`    
+    example: `python3 -m onnxruntime.tools.make_dynamic_shape_fixed output/256in_ms_w1_up_pv05_abs0_scratch_2d.onnx 256in_ms_w1_up_pv05_abs0_scratch_2d.onnx --input_name input_2 --input_shape 1,3,256,256`
+
+    3. Simplify ONNX model
+    https://convertmodel.com/#input=onnx&output=onnx
+    Visit this link and choose the input format :onnx , and the out format: onnx. Check all the options and click the convert button. You can download simplified onnx model.
+
+    4. Convert simplified ONNX model to NCNN model
+    https://convertmodel.com/#input=onnx&output=onnx
+    Choose output format : ncnn, and the input format : onnx. Uncheck all the options and click the convert button. You can download bin and param files. 
+
+
+
+
 # MeTRAbs Absolute 3D Human Pose Estimator
 
 <a href="https://colab.research.google.com/github/isarandi/metrabs/blob/master/metrabs_demo.ipynb" target="_parent"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a><br>
