@@ -6,11 +6,12 @@ https://roblox.atlassian.net/wiki/spaces/~ylee/pages/2106262747/MeTRo+training+s
 
 2. Training Examples
     1. Trained models are listed in https://docs.google.com/spreadsheets/d/1s_EU91shYbMo9f5R5C5338an3WXiY3TREv5LAt8Gn-0/edit#gid=1046801698
-    2. As of 08/14/2023, we have chosen three models that offer the best trade-off, and you can find their respective training commands by `grep command ${ckpt_dir}/log.txt`
+    2. As of 08/14/2023, we have chosen three models that offer the best trade-off, and you can find their respective training commands by `grep command ${ckpt_dir}/log.txt`.
         1. Large model(116M): `./main.py --train --dataset=sway --train-on=trainval --seed=1 --training-steps=1000000 --model-class=Metrabs --workers=30 --validate-period=50000 --final-transposed-conv=1 --backbone=mobilenetV3Small --logdir=sway_ncnn/256in_ms_w1_up_pv05_abs0_scratch_2d --proc-side=256 --output-upper-joints --upper-bbox --partial-visibility-prob=0.5 --mobilenet-alpha=1.0 --zero-padding=0 --no-geom-aug --occlude-aug-prob=0 --occlude-aug-prob-2d=0 --dtype=float32 --absloss-factor=0 --data-format=NCHW --input-float32 --init=scratch`
         2. Medium model(46M): `./main.py --train --dataset=sway --train-on=trainval --seed=1 --training-steps=1000000 --model-class=Metrabs --workers=30 --validate-period=50000 --final-transposed-conv=1 --backbone=mobilenetV3Small --logdir=sway_ncnn/160in_ms_w1_up_pv05_abs0_scratch --proc-side=160 --output-upper-joints --upper-bbox --partial-visibility-prob=0.5 --mobilenet-alpha=1.0 --zero-padding=0 --occlude-aug-prob-2d=0 --dtype=float32 --absloss-factor=0 --data-format=NCHW --input-float32 --init=scratch`
         3. Small model(20M): `./main.py --train --dataset=sway --train-on=trainval --seed=1 --training-steps=1000000 --model-class=Metrabs --workers=30 --validate-period=50000 --final-transposed-conv=1 --backbone=mobilenetV3Small --logdir=sway_ncnn/112in_ms_w075_up_pv05_abs0_scratch --proc-side=112 --output-upper-joints --upper-bbox --partial-visibility-prob=0.5 --mobilenet-alpha=0.75 --zero-padding=0 --occlude-aug-prob-2d=0 --dtype=float32 --absloss-factor=0 --data-format=NCHW --input-float32 --init=scratch`
-    3. You can manually export a checkpoint into pb format by `ckptno=20001; ./main.py --export-file=model$ckptno --dataset=sway --checkpoint-dir=sway_ncnn/256in_ms_w1_up_pv05_abs0_ckpt --load-path=ckpt-$ckptno --model-class=Metrabs --final-transposed-conv=1 --init=scratch --backbone=mobilenetV3Small --proc-side=256 --mobilenet-alpha=1.0 --output-upper-joints --data-format=NCHW --input-float32`
+    3. You can manually export a checkpoint into pb format by `ckptno=20001; ./main.py --export-file=model$ckptno --dataset=sway --checkpoint-dir=sway_ncnn/256in_ms_w1_up_pv05_abs0_ckpt --load-path=ckpt-$ckptno --model-class=Metrabs --final-transposed-conv=1 --init=scratch --backbone=mobilenetV3Small --proc-side=256 --mobilenet-alpha=1.0 --output-upper-joints --data-format=NCHW --input-float32 --dtype=float32`
+        * Please ensure that the `data format`, `input-float32`, and `dtype` are consistent with the training settings when exporting the model.
 
 3. Visualization
 `python src/viz.py model1 .. modelN h36m|input_path output_path`
@@ -41,8 +42,6 @@ You can incorporate 3D datasets by following these steps:
     4. Convert simplified ONNX model to NCNN model
     https://convertmodel.com/#input=onnx&output=onnx
     Choose output format : ncnn, and the input format : onnx. Uncheck all the options and click the convert button. You can download bin and param files. 
-
-
 
 
 # MeTRAbs Absolute 3D Human Pose Estimator
