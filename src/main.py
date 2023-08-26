@@ -59,11 +59,12 @@ def train():
     n_completed_steps = get_n_completed_steps(FLAGS.checkpoint_dir, FLAGS.load_path)
 
     rng = np.random.RandomState(FLAGS.seed)
-    data2d = build_dataflow(
-        examples2d, data.data_loading.load_and_transform2d, (joint_info2d, TRAIN),
-        TRAIN, batch_size=FLAGS.batch_size_2d * n_repl, n_workers=FLAGS.workers,
-        rng=util.new_rng(rng), n_completed_steps=n_completed_steps,
-        n_total_steps=FLAGS.training_steps)
+    if FLAGS.loss2d_factor > 0.0:
+        data2d = build_dataflow(
+            examples2d, data.data_loading.load_and_transform2d, (joint_info2d, TRAIN),
+            TRAIN, batch_size=FLAGS.batch_size_2d * n_repl, n_workers=FLAGS.workers,
+            rng=util.new_rng(rng), n_completed_steps=n_completed_steps,
+            n_total_steps=FLAGS.training_steps)
 
     data3d = build_dataflow(
         example_sections, data.data_loading.load_and_transform3d, (joint_info3d, TRAIN),
@@ -72,8 +73,11 @@ def train():
         rng=util.new_rng(rng), n_completed_steps=n_completed_steps,
         n_total_steps=FLAGS.training_steps, roundrobin_sizes=roundrobin_sizes)
 
-    data_train = tf.data.Dataset.zip((data3d, data2d))
-    data_train = data_train.map(lambda batch3d, batch2d: {**batch3d, **batch2d})
+    if FLAGS.loss2d_factor > 0.0:
+        data_train = tf.data.Dataset.zip((data3d, data2d))
+        data_train = data_train.map(lambda batch3d, batch2d: {**batch3d, **batch2d})
+    else:
+        data_train = data3d
     if not FLAGS.multi_gpu:
         data_train = data_train.apply(tf.data.experimental.prefetch_to_device('GPU:0', 2))
 

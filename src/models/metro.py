@@ -97,12 +97,14 @@ class MetroTrainer(models.model_trainer.ModelTrainer):
     def forward_train(self, inps, training):
         preds = AttrDict()
 
-        image_both = tf.concat([inps.image, inps.image_2d], axis=0)
-        coords3d_pred_both = self.model(image_both, training=training)
-
-        batch_sizes = [t.shape.as_list()[0] for t in [inps.image, inps.image_2d]]
-        preds.coords3d_rel_pred, preds.coords3d_pred_2d = tf.split(
-            coords3d_pred_both, batch_sizes, axis=0)
+        if FLAGS.loss2d_factor > 0.0:
+            image_both = tf.concat([inps.image, inps.image_2d], axis=0)
+            coords3d_pred_both = self.model(image_both, training=training)
+            batch_sizes = [t.shape.as_list()[0] for t in [inps.image, inps.image_2d]]
+            preds.coords3d_rel_pred, preds.coords3d_pred_2d = tf.split(
+                coords3d_pred_both, batch_sizes, axis=0)
+        else:
+            preds.coords3d_rel_pred = self.model(inps.image, training=training)
 
         joint_ids_3d = [
             [self.joint_info.ids[n2] for n2 in self.joint_info.names if n2.startswith(n1)]
@@ -117,8 +119,9 @@ class MetroTrainer(models.model_trainer.ModelTrainer):
                  for ids in joint_ids_3d], axis=1)
 
         # numbers mean: like 2d dataset joints, 2d batch
-        preds.coords2d_pred_2d = get_2dlike_joints(preds.coords3d_pred_2d[..., :2])
-        
+        if FLAGS.loss2d_factor > 0.0:
+            preds.coords2d_pred_2d = get_2dlike_joints(preds.coords3d_pred_2d[..., :2])
+
         return preds
 
     def compute_losses(self, inps, preds):
@@ -137,6 +140,9 @@ class MetroTrainer(models.model_trainer.ModelTrainer):
 
         rootrel_absdiff = tf.abs((coords3d_true_rootrel - coords3d_pred_rootrel) / 1000)
         losses.loss3d = tfu.reduce_mean_masked(rootrel_absdiff, inps.joint_validity_mask[:, joint_index_start:])
+        if FLAGS.loss2d_factor==0.0:
+            losses.loss = losses.loss3d
+            return losses
 
         ####################
         # 2D BATCH
