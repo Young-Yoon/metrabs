@@ -141,6 +141,12 @@ def train():
         callbacks.TensorBoardCallback(global_step)
     ]
 
+    # `pip install -U tensorboard_plugin_profiler` or ensure the docker version metrabs:0.1.21 or higher
+    if FLAGS.tfprofiler:
+        profiler_dir = util.ensure_absolute_path(os.path.join('experiments', FLAGS.tfprofiler_dir))
+        c = keras.callbacks.TensorBoard(log_dir=profiler_dir, profile_batch=(30, 35))
+        cbacks.append(c)
+
     if FLAGS.finetune_in_inference_mode:
         switch_step = FLAGS.training_steps - FLAGS.finetune_in_inference_mode
         c = callbacks.SwitchToInferenceModeCallback(global_step, switch_step)

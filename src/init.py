@@ -231,4 +231,8 @@ def get_parser():
     parser.add_argument('--model-class', type=str, default='Metrabs')
     parser.add_argument('--input-float32', action=options.BoolAction, default=False)
     parser.add_argument('--final-transposed-conv', type=int, default=1)
+    parser.add_argument('--tfprofiler', action=options.BoolAction, default=False,
+                       help='tensorflow profiler')
+    parser.add_argument('--tfprofiler-dir', type=str, default='tfprofiler',
+                        help='Directory path of tensorflow profiler.')
     return parser
