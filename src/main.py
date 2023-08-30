@@ -237,9 +237,11 @@ def export():
     backbone = backbones.builder.build_backbone()
     if FLAGS.model_class == 'Metrabs':
         model = models.metrabs.Metrabs(backbone, ji)
-        input_shape = [(None, None, None, 3), (None, 3, 3)]
     else:
         model = models.metro.Metro(backbone, ji)
+    if FLAGS.data_format == 'NCHW':
+        input_shape = (None, 3, None, None)
+    else:
         input_shape = (None, None, None, 3)
 
     ckpt = tf.train.Checkpoint(model=model)
