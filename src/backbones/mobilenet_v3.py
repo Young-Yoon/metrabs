@@ -505,12 +505,8 @@ def _depth(v, divisor=8, min_value=None):
 
 
 def _se_block(inputs, filters, se_ratio, prefix):
-    x = global_layers.GlobalAveragePooling2D(name=prefix + 'squeeze_excite/AvgPool')(
+    x = global_layers.GlobalAveragePooling2D(keepdims=True, name=prefix + 'squeeze_excite/AvgPool')(
         inputs)
-    if backend.image_data_format() == 'channels_first':
-        x = global_layers.Reshape((filters, 1, 1))(x)
-    else:
-        x = global_layers.Reshape((1, 1, filters))(x)
     x = global_layers.Conv2D(
         _depth(filters * se_ratio),
         kernel_size=1,
