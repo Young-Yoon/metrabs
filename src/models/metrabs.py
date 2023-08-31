@@ -1,3 +1,4 @@
+
 import einops
 import keras
 import keras.layers
@@ -23,8 +24,25 @@ class Metrabs(keras.Model):
         if FLAGS.output_upper_joints:
             n_raw_points = 8
         else:
-            n_raw_points = 32 if FLAGS.transform_coords else joint_info.n_joints            
-        self.heatmap_heads = MetrabsHeads(n_points=n_raw_points)
+            n_raw_points = 32 if FLAGS.transform_coords else joint_info.n_joints   
+
+        ''' 
+        Selection of METRABS head class based on flags used. 
+        Possible values of head_class_string: 
+        - MetrabsHeads (default, if FLAGS.metrabs_simcc_head = "")
+        - MetrabsSimCCSoftMaxHeads (if FLAGS.metrabs_simcc_head = SimCCSoftMax)
+        - MetrabsSimCCSoftArgMaxHeads (if FLAGS.metrabs_simcc_head = SimCCSoftArgMax)
+        '''
+        head_class_string = 'Metrabs' + FLAGS.metrabs_simcc_head + 'Heads'
+
+        ## importing here to avoid circular imports 
+        import models.metrabs_simcc_soft_argmax as metrabs_simcc_soft_argmax
+        import models.metrabs_simcc_soft_max as metrabs_simcc_soft_max
+
+        head_class = getattr(models, head_class_string)
+
+        self.heatmap_heads = head_class(n_points=n_raw_points)      
+        #self.heatmap_heads = MetrabsHeads(n_points=n_raw_points)
         if FLAGS.transform_coords:
             self.recombination_weights = tf.constant(np.load('32_to_122'))    
 

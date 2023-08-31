@@ -231,6 +231,13 @@ def get_parser():
     parser.add_argument('--model-class', type=str, default='Metrabs')
     parser.add_argument('--input-float32', action=options.BoolAction, default=False)
     parser.add_argument('--final-transposed-conv', type=int, default=1)
+   
+    parser.add_argument('--metrabs-simcc-head', type=str, default='', 
+                        help='Options to add SimCC Head for METRABS model. Valid options include: SimCCSoftMax, SimCCSoftArgMax. If not specified, the default Metrabs Head is used. Note that SimCC heads currently only support MobilenetV3 backbone. ')
+    parser.add_argument('--depth-length', type=int, default=128,
+                        help='Number of bins in final layer of simCC head (only used for MetrabsSimCCSoftArgMaxHeads).')
+   
+
     parser.add_argument('--tfprofiler', action=options.BoolAction, default=False,
                        help='tensorflow profiler')
     parser.add_argument('--tfprofiler-dir', type=str, default='tfprofiler',

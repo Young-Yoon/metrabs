@@ -20,6 +20,8 @@ import data.datasets2d
 import data.datasets3d
 import init
 import models.metrabs
+import models.metrabs_simcc_soft_argmax
+import models.metrabs_simcc_soft_max
 import models.util
 import parallel_preproc
 import tfu
@@ -107,9 +109,17 @@ def train():
     with strategy.scope():
         global_step = tf.Variable(n_completed_steps, dtype=tf.int32, trainable=False)
         backbone = backbones.builder.build_backbone()
-
         model_class = getattr(models, FLAGS.model_class)
-        trainer_class = getattr(models, FLAGS.model_class + 'Trainer')
+
+        ''' 
+        Selection of trainer class. 
+        Possible values of trainer_class_string based on arguments used: 
+        - MetrabsTrainer
+        - MetrabsSimCCSoftMaxTrainer
+        - MetrabsSimCCSoftArgMaxTrainer
+        '''
+        trainer_class_string = FLAGS.model_class + FLAGS.metrabs_simcc_head + 'Trainer'
+        trainer_class = getattr(models, trainer_class_string)
 
         bone_lengths = (
             dataset3d.trainval_bones if FLAGS.train_on == 'trainval' else dataset3d.train_bones)

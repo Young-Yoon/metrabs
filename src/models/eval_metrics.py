@@ -120,3 +120,72 @@ def compute_pose3d_metrics_j8(inps, preds):
     metrics.ncps_auc = tf.reduce_mean(tfu.auc(max_dist_pa, 50, 150))
     metrics.ncps = tf.reduce_mean(tf.cast(max_dist_pa <= threshold, tf.float32))
     return metrics
+
+## Metrics calculation for METRABS when using simcc head with softmax 
+## Utilized in metrabs_simcc_soft_max.py: MetrabsSimCCSoftMaxTrainer
+def compute_pose3d_metrics_simcc_soft_max(inps, preds):
+    metrics = AttrDict()
+
+
+    prob_output3d_idx = tf.argmax(preds.coords3d_rel_pred, axis=-1)
+    prob_output2d_idx = tf.argmax(preds.coords2d_pred, axis=-1)
+
+
+    prob_output3d_idx = tf.cast(prob_output3d_idx, tf.float32)   
+    prob_output2d_idx = tf.cast(prob_output2d_idx, tf.float32)   
+
+
+    input_coord3d = inps.coords3d_true[:, 9:, :]
+    center = input_coord3d[:, -1:]    
+    input_coord3d = input_coord3d - center + FLAGS.box_size_mm/2
+
+#     rootrelative_diff = tfu3d.center_relative_pose(
+#         prob_output3d_idx - inps.coords3d_true[:,9:,:], inps.joint_validity_mask[:,9:],
+#         center_is_mean=FLAGS.mean_relative)
+
+    rootrelative_diff = tfu3d.center_relative_pose(
+        prob_output3d_idx - input_coord3d, inps.joint_validity_mask[:,9:],
+        center_is_mean=FLAGS.mean_relative)
+
+
+    dist = tf.norm(rootrelative_diff, axis=-1)
+    metrics.mean_error = tfu.reduce_mean_masked(dist, inps.joint_validity_mask[:,9:])
+
+
+    metrics.mean_error_2d = tfu.reduce_mean_masked(
+        tf.norm(inps.coords2d_true[:,9:,:] -prob_output2d_idx[:, :, :2], axis=-1),
+        inps.joint_validity_mask[:,9:])
+
+
+
+    return metrics
+
+## Metrics calculation for METRABS when using simcc head with argmax 
+## Utilized in metrabs_simcc_soft_argmax.py: MetrabsSimCCSoftArgMaxTrainer
+def compute_pose3d_metrics_simcc_soft_argmax(inps, preds):
+    metrics = AttrDict()
+
+    input_coord3d = inps.coords3d_true[:, 9:, :]
+    center = input_coord3d[:, -1:]    
+    input_coord3d = input_coord3d - center + FLAGS.box_size_mm/2
+
+#     rootrelative_diff = tfu3d.center_relative_pose(
+#         prob_output3d_idx - inps.coords3d_true[:,9:,:], inps.joint_validity_mask[:,9:],
+#         center_is_mean=FLAGS.mean_relative)
+
+    rootrelative_diff = tfu3d.center_relative_pose(
+        preds.coords3d_rel_pred - input_coord3d, inps.joint_validity_mask[:,9:],
+        center_is_mean=FLAGS.mean_relative)
+
+
+    dist = tf.norm(rootrelative_diff, axis=-1)
+    metrics.mean_error = tfu.reduce_mean_masked(dist, inps.joint_validity_mask[:,9:])
+
+
+    metrics.mean_error_2d = tfu.reduce_mean_masked(
+        tf.norm(inps.coords2d_true[:,9:,:] -preds.coords2d_pred[:, :, :2], axis=-1),
+        inps.joint_validity_mask[:,9:])
+
+
+
+    return metrics
