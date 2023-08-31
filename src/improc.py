@@ -157,6 +157,13 @@ else:
         path = util.ensure_absolute_path(path)
         return imageio.imread(path)
 
+def imread_png(path):
+    if isinstance(path, bytes):
+        path = path.decode('utf8')
+    elif isinstance(path, str):
+        path = str(path)
+    path = util.ensure_absolute_path(path)
+    return imageio.imread(path)[:,:,:3] # remove alpha channel is exists
 
 @numba.jit(nopython=True)
 def paste_over(im_src, im_dst, alpha, center, inplace=False):

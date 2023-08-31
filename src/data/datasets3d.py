@@ -73,6 +73,11 @@ def make_sway(*args, **kwargs):
     return data.sway.make_sway(*args, **kwargs)
 
 
+def make_pandora(*args, **kwargs):
+    import data.pandora
+    return data.pandora.make_pandora(*args, **kwargs)
+
+
 def make_mpi_inf_3dhp():
     import data.mpi_inf_3dhp
     return data.mpi_inf_3dhp.make_mpi_inf_3dhp()

@@ -6,33 +6,9 @@ import data.datasets3d as ps3d
 import paths
 import util
 from data.preproc_for_efficiency import make_efficient_example
+from data.utils import visualize_sample
 
 
-def vis(imagepath, projected_2d, bbox, keypoint_2d=None):
-    import matplotlib.pyplot as plt
-    from skimage.io import imread, imshow
-    image = imread(imagepath)
-    h, w, _ = image.shape
-    plt.imshow(image)
-    
-    ### Show the reprojected keypoints
-    for j in range(projected_2d.shape[0]):
-        plt.plot(projected_2d[j, 0], projected_2d[j, 1], "o", markersize=7, color="orange")
-        
-    ### Show the keypoints
-    if keypoint_2d is not None:
-        for joint2d in keypoint_2d:
-            x = joint2d['u'] * w
-            y = joint2d['v'] * h
-            plt.plot(x, y, "o", markersize=3, color="white", alpha=joint2d['confidence'])
-    min_x = bbox[0]
-    min_y = bbox[1]
-    max_x = bbox[0] + bbox[2]
-    max_y = bbox[1] + bbox[3]
-    plt.plot([min_x, max_x, max_x, min_x, min_x], [min_y, min_y, max_y, max_y, min_y])
-    plt.show() 
-    plt.savefig('swaydemo.jpg')
-    return
 
 
 def get_seq_info(phase, root_sway, use_kd):
@@ -93,7 +69,7 @@ def load_seq_param(seq_dir, seq_name, root_sway, use_kd):
     return True, (camera, world_pose3d, bbox, n_frames)
 
 
-def get_examples(phase, pool, use_kd=True):
+def get_examples(phase, pool, use_kd=True, visualize=False):
     result = []
     if use_kd:
         # From 'pelv,rhip,rkne,rank,lhip,lkne,lank,spin,neck,head,htop,lsho,lelb,lwri,rsho,relb,rwri’ --> root-last
@@ -147,7 +123,9 @@ def get_examples(phase, pool, use_kd=True):
             impath = f'sway/{seq_dir}/{seq_name}/images/{i_frame+1:05d}.jpg'
             ex = ps3d.Pose3DExample(impath, world_coords, bbox=bbox_fr, camera=camera)
 
-#                 vis(os.path.join(paths.DATA_ROOT, impath), proj2d, bbox[i_frame])
+            if visualize:
+                visualize_sample(os.path.join(paths.DATA_ROOT, impath), bbox=bbox[i_frame])
+
 #                 new_image_relpath = impath.replace('sway/sway61769', 'sway_downscaled')
 #                 pool.apply_async(
 #                     make_efficient_example,
