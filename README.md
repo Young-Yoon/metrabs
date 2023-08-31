@@ -26,22 +26,32 @@ You can incorporate 3D datasets by following these steps:
     2. Include the offline data processing function within the `data/sway.py` file.
     3. To evaluate models using the new data, develop the evaluation script within the `eval_scripts/eval_sway.py` file.
 
-6. TF Model conversion to ONNX and NCNN
-    1. Convert TF model to ONNX model
-    `PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python python3 -m tf2onnx.convert --saved-model model_path --output output_path --opset 15`    
-    example: `PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python python3 -m tf2onnx.convert --saved-model ./runs/metrabs-exp/sway_ncnn/256in_ms_w1_up_pv05_abs0_scratch_2d/model/ --output ./output/256in_ms_w1_up_pv05_abs0_scratch_2d.onnx --opset 15`
-    
-    2. Dynamic input to fixed input
-    `python3 -m onnxruntime.tools.make_dynamic_shape_fixed input_onnx_path output_onnx_path --input_name input_2 --input_shape N,C,H,W`    
-    example: `python3 -m onnxruntime.tools.make_dynamic_shape_fixed output/256in_ms_w1_up_pv05_abs0_scratch_2d.onnx 256in_ms_w1_up_pv05_abs0_scratch_2d.onnx --input_name input_2 --input_shape 1,3,256,256`
+6. TF Model conversion to ONNX and NCNN, and bundle for loom-sdk
+   You can convert from a TF model with a single command all the way to bundled NCNN:
+   ```
+   python tools/metrabs_converter.py \
+   --output-models-folder ~/git/ave-models/body/ \
+   --version 2 1 1 4 \
+   --model-path ~/Downloads/160in_ms_w1_up_pv05_abs0_scratch/model \
+   --model-kind Metrabs \
+   --ave-tracker-path /Users/inavarro/git/ave-tracker/build/client/release \
+   --keep-intermediate-files \
+   --input-resolution-hw 160 160 \
+   --model-input-name input_2
+   ```
+   This requires having ave-tracker tools installed in your system. You can install ave-tracker tools following the README in https://github.rbx.com/GameEngine/ave-tracker
+   In case you would like to convert just to ONNX you can do it without ave-tracker with the following command (avoiding the `--ave-tracker-path` argument):
+   ```
+   python tools/metrabs_converter.py \
+   --output-models-folder ~/git/ave-models/body/ \
+   --version 2 1 1 4 \
+   --model-path ~/Downloads/160in_ms_w1_up_pv05_abs0_scratch/model \
+   --model-kind Metrabs \
+   --keep-intermediate-files \
+   --input-resolution-hw 160 160 \
+   --model-input-name input_2
+   ```
 
-    3. Simplify ONNX model
-    https://convertmodel.com/#input=onnx&output=onnx
-    Visit this link and choose the input format :onnx , and the out format: onnx. Check all the options and click the convert button. You can download simplified onnx model.
-
-    4. Convert simplified ONNX model to NCNN model
-    https://convertmodel.com/#input=onnx&output=onnx
-    Choose output format : ncnn, and the input format : onnx. Uncheck all the options and click the convert button. You can download bin and param files. 
 
 
 # MeTRAbs Absolute 3D Human Pose Estimator
