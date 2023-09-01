@@ -1,4 +1,4 @@
-from models.metrabs import Metrabs, MetrabsTrainer
+from models.metrabs import Metrabs, MetrabsHeads, MetrabsTrainer
 from models.metro import Metro, MetroTrainer
 from models.twofive import Model25D, Model25DTrainer
 from models.metrabs_simcc_soft_argmax import MetrabsSimCCSoftArgMaxHeads, MetrabsSimCCSoftArgMaxTrainer
